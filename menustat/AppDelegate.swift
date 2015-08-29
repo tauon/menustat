@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @IBOutlet weak var window: NSWindow!
     @IBOutlet weak var buttonQuit: NSButton?
+    @IBOutlet weak var networkInterfaceSelector: NSPopUpButton!
     var menuItem = NSStatusBar.systemStatusBar().statusItemWithLength(NSVariableStatusItemLength)
     let cpuInfo = CPUInfo()
     let netInfo = NetInfo()
@@ -18,10 +19,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var netBytesDelta:UInt32 = 0
     let cpuLoadString = "% 2d%% % 2d%% % 2d%% % 2d%% % 7.1fk"
     let updateIntervalSeconds:NSTimeInterval = 2
-    
+    var interfaces:[String] = []
+    var selectedNetworkInterface = "en0"
+
     func applicationDidFinishLaunching(aNotification: NSNotification) {
         menuItem.button?.font = NSFont(name: "Menlo", size:9)!
         menuItem.action = "showWindow"
+        let interfaceStats = netInfo.getInterfaceStats()
+        for (iface, _) in interfaceStats {
+            interfaces.append(iface)
+        }
+        networkInterfaceSelector.addItemsWithTitles(interfaces)
         let t = NSTimer(
             timeInterval: updateIntervalSeconds,
             target:self,
@@ -30,12 +38,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             repeats: true)
         NSRunLoop.currentRunLoop().addTimer(t, forMode: NSRunLoopCommonModes)
     }
-    
+
     func showWindow() {
         NSApp.activateIgnoringOtherApps(true)
         window.makeKeyAndOrderFront(nil)
     }
-    
+
     func update() {
         let loadDeltas = cpuInfo.getLoad()
         let numCores = Int(loadDeltas.memory.numCores)
@@ -51,7 +59,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         let s = netInfo.getInterfaceStats()
-        let now = (s["en0"]?.totalin)!
+        let now = (s[selectedNetworkInterface]?.totalin)!
         if netBytesLast != 0 {
             netBytesDelta = now - netBytesLast
         }
@@ -62,11 +70,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(aNotification: NSNotification) {
     }
-    
+
     @IBAction func doQuit(x:NSButton) {
         NSApplication.sharedApplication().terminate(self)
     }
 
-
+    @IBAction func doSelectNetworkInterface(x:NSPopUpButton) {
+        selectedNetworkInterface = x.titleOfSelectedItem!
+        netBytesLast = 0
+        netBytesDelta = 0
+    }
 }
 
