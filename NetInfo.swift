@@ -16,9 +16,9 @@ struct IFStats {
 
 class NetInfo {
     var buffer = Array<UInt8>(count: 2048, repeatedValue: 0)
-    
+    var stats = Dictionary<String, IFStats>()
+
     func getInterfaceStats() -> Dictionary<String, IFStats> {
-        var stats = Dictionary<String, IFStats>()
         var mib:[Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST, 0]
         var currentSize:Int = 0
         if sysctl(&mib, u_int(6), nil, &currentSize, nil, 0) != 0 {
