@@ -11,15 +11,15 @@ struct Load {
     var idle:Int32
 }
 
-let CPU_STATE_USER = 0
+let CPU_STATE_USER   = 0
 let CPU_STATE_SYSTEM = 1
-let CPU_STATE_IDLE = 2
-let CPU_STATE_NICE = 3
-let CPU_STATE_MAX =	4
+let CPU_STATE_IDLE   = 2
+let CPU_STATE_NICE   = 3
+let CPU_STATE_MAX    = 4
 
 class CPUInfo2 {
     var numCPUs = natural_t()
-    var cpuStateInfo = processor_info_array_t()
+    var cpuStateInfo = processor_info_array_t(nil)
     var infoCount = mach_msg_type_number_t()
     var currentLoad:[Load]?
     var previousLoad:[Load]?
@@ -38,7 +38,7 @@ class CPUInfo2 {
             currentLoad = [Load](count: Int(numCPUs), repeatedValue: Load(busy: 0, idle: 0))
             previousLoad = [Load](count: Int(numCPUs), repeatedValue: Load(busy: 0, idle: 0))
         }
-        for var i = 0; i < Int(4); i++ {
+        for i in 0 ..< Int(numCPUs) {
             var load = Load(busy: 0, idle: 0)
             let coreIndexOffset = CPU_STATE_MAX * i
             load.busy += cpuStateInfo[coreIndexOffset + CPU_STATE_USER]
