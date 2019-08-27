@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="8191" systemVersion="15A282b" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="14490.70" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
     <dependencies>
         <deployment identifier="macosx"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="8191"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="14490.70"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="NSApplication">
@@ -14,7 +15,6 @@
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="menustat" customModuleProvider="target">
             <connections>
-                <outlet property="networkInterfaceSelector" destination="i8T-ey-jck" id="NbE-Lm-zh6"/>
                 <outlet property="window" destination="QvC-M9-y7g" id="gIp-Ho-8D9"/>
             </connections>
         </customObject>
@@ -54,57 +54,29 @@
                 </menuItem>
             </items>
         </menu>
-        <window title="menustat" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" showsToolbarButton="NO" visibleAtLaunch="NO" animationBehavior="default" id="QvC-M9-y7g">
+        <window title="menustat" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" animationBehavior="default" id="QvC-M9-y7g">
             <windowStyleMask key="styleMask" titled="YES" closable="YES"/>
             <rect key="contentRect" x="335" y="390" width="274" height="92"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1366" height="745"/>
-            <value key="minSize" type="size" width="480" height="360"/>
-            <value key="maxSize" type="size" width="480" height="360"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1057"/>
             <view key="contentView" id="EiT-Mj-1SZ">
                 <rect key="frame" x="0.0" y="0.0" width="274" height="92"/>
                 <autoresizingMask key="autoresizingMask"/>
                 <subviews>
                     <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="DJJ-kc-uyS">
-                        <rect key="frame" x="52" y="13" width="170" height="32"/>
-                        <constraints>
-                            <constraint firstAttribute="width" constant="158" id="azA-1T-Z5X"/>
-                        </constraints>
-                        <animations/>
+                        <rect key="frame" x="71" y="29" width="132" height="32"/>
                         <buttonCell key="cell" type="push" title="Quit menustat" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="cx2-Kq-9KA">
                             <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                             <font key="font" metaFont="systemBold"/>
                         </buttonCell>
                         <connections>
-                            <action selector="doQuit:" target="Voe-Tx-rLC" id="aZX-Gm-LCe"/>
+                            <action selector="doQuitWithX:" target="Voe-Tx-rLC" id="9bl-on-NTd"/>
                         </connections>
                     </button>
-                    <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="ivc-kC-T4X">
-                        <rect key="frame" x="18" y="55" width="117" height="17"/>
-                        <animations/>
-                        <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" sendsActionOnEndEditing="YES" title="Network interface:" id="bAf-Qu-Ur7">
-                            <font key="font" metaFont="system"/>
-                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                            <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
-                        </textFieldCell>
-                    </textField>
-                    <popUpButton verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="i8T-ey-jck">
-                        <rect key="frame" x="160" y="50" width="97" height="26"/>
-                        <animations/>
-                        <popUpButtonCell key="cell" type="push" bezelStyle="rounded" alignment="left" lineBreakMode="truncatingTail" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" id="U3J-s1-z2n">
-                            <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
-                            <font key="font" metaFont="menu"/>
-                            <menu key="menu" id="SBs-n6-O6K"/>
-                        </popUpButtonCell>
-                        <connections>
-                            <action selector="doSelectNetworkInterface:" target="Voe-Tx-rLC" id="GUg-LA-TVE"/>
-                        </connections>
-                    </popUpButton>
                 </subviews>
                 <constraints>
-                    <constraint firstItem="DJJ-kc-uyS" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="AF3-fV-cms"/>
-                    <constraint firstAttribute="bottom" secondItem="DJJ-kc-uyS" secondAttribute="bottom" constant="20" symbolic="YES" id="Svh-ep-qrH"/>
+                    <constraint firstItem="DJJ-kc-uyS" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="IGM-0Z-oiH"/>
+                    <constraint firstItem="DJJ-kc-uyS" firstAttribute="centerY" secondItem="EiT-Mj-1SZ" secondAttribute="centerY" id="jIP-DC-M1n"/>
                 </constraints>
-                <animations/>
             </view>
             <point key="canvasLocation" x="172" y="-190"/>
         </window>

@@ -8,50 +8,50 @@
 
 @implementation CPUInfo
 
-processor_info_array_t loadInfo;
-mach_msg_type_number_t sizeLoadInfo;
-struct Load* lastLoads;
-struct LoadDeltas* loadDeltas;
+processor_info_array_t processorInfo;
+mach_msg_type_number_t sizeProcessorLoadInfo;
+struct CPULoad* lastLoads;
+struct CPULoads* loads;
+uint numProcs;
 
-- (struct LoadDeltas*)getLoad {
-
-    natural_t numCores = 0U;
+- (struct CPULoads*) getCPULoadInfo {
+    numProcs = 0;
     kern_return_t err =
         host_processor_info(
                             mach_host_self(),
                             PROCESSOR_CPU_LOAD_INFO,
-                            &numCores,
-                            &loadInfo,
-                            &sizeLoadInfo);
+                            &numProcs,
+                            &processorInfo,
+                            &sizeProcessorLoadInfo);
     if(err != KERN_SUCCESS) {
         return NULL;
     }
-    if(!loadDeltas) {
-        loadDeltas = malloc(sizeof(struct LoadDeltas));
-        loadDeltas->loads = malloc(sizeof(struct Load) * numCores);
-        loadDeltas->numCores = numCores;
+    if(!loads) {
+        loads = malloc(sizeof(struct CPULoads));
+        loads->loads = malloc(sizeof(struct CPULoad) * numProcs);
+        loads->numProcs = numProcs;
     }
-    for(unsigned i = 0U; i < numCores; ++i) {
-        integer_t busy, idle = 0;
-        unsigned coreOffset = CPU_STATE_MAX * i;
-        busy = loadInfo[coreOffset + CPU_STATE_USER];
-        busy += loadInfo[coreOffset + CPU_STATE_SYSTEM];
-        busy += loadInfo[coreOffset + CPU_STATE_NICE];
-        idle = loadInfo[coreOffset + CPU_STATE_IDLE];
+    for(uint i = 0; i < numProcs; ++i) {
+        uint totalBusyTicks, totalIdleTicks = 0;
+        uint cpuStateOffset = CPU_STATE_MAX * i;
+        totalBusyTicks = processorInfo[cpuStateOffset + CPU_STATE_USER];
+        totalBusyTicks += processorInfo[cpuStateOffset + CPU_STATE_SYSTEM];
+        totalBusyTicks += processorInfo[cpuStateOffset + CPU_STATE_NICE];
+        totalIdleTicks = processorInfo[cpuStateOffset + CPU_STATE_IDLE];
         if(!lastLoads) {
-            lastLoads = malloc(sizeof(struct Load) * numCores);
-            lastLoads[i].busy = busy;
-            lastLoads[i].idle = idle;
+            lastLoads = malloc(sizeof(struct CPULoad) * numProcs);
+            lastLoads[i].busy = totalBusyTicks;
+            lastLoads[i].idle = totalIdleTicks;
         }
-        loadDeltas->loads[i].busy = busy - lastLoads[i].busy;
-        loadDeltas->loads[i].idle = idle - lastLoads[i].idle;
-        lastLoads[i].busy = busy;
-        lastLoads[i].idle = idle;
+        loads->loads[i].busy = totalBusyTicks - lastLoads[i].busy;
+        loads->loads[i].idle = totalIdleTicks - lastLoads[i].idle;
+        lastLoads[i].busy = totalBusyTicks;
+        lastLoads[i].idle = totalIdleTicks;
     }
-        size_t prevCpuInfoSize = sizeof(integer_t) * numCores;
-        vm_deallocate(mach_task_self(), (vm_address_t)loadInfo, prevCpuInfoSize);
-    loadInfo = NULL;
-    return loadDeltas;
+        size_t prevCpuInfoSize = sizeof(integer_t) * numProcs;
+        vm_deallocate(mach_task_self(), (vm_address_t)processorInfo, prevCpuInfoSize);
+        processorInfo = NULL;
+        return loads;
 }
 
 @end

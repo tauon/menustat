@@ -7,8 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		30C2AE1D1B2EB7AC00B1036D /* CPUInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C2AE1C1B2EB7AC00B1036D /* CPUInfo.swift */; };
-		30E7DFF31B28BDBE0035A9E4 /* NetInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30E7DFF21B28BDBE0035A9E4 /* NetInfo.swift */; };
+		306B33B02234C93B00B2B68C /* NetInfo.m in Sources */ = {isa = PBXBuildFile; fileRef = 306B33AF2234C93B00B2B68C /* NetInfo.m */; };
 		30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664251B28426A00C98B4D /* AppDelegate.swift */; };
 		30F664281B28426A00C98B4D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 30F664271B28426A00C98B4D /* Assets.xcassets */; };
 		30F6642B1B28426A00C98B4D /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 30F664291B28426A00C98B4D /* MainMenu.xib */; };
@@ -16,8 +15,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		30C2AE1C1B2EB7AC00B1036D /* CPUInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CPUInfo.swift; sourceTree = "<group>"; };
-		30E7DFF21B28BDBE0035A9E4 /* NetInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = NetInfo.swift; path = ../NetInfo.swift; sourceTree = "<group>"; };
+		306B33AE2234C93B00B2B68C /* NetInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetInfo.h; sourceTree = SOURCE_ROOT; };
+		306B33AF2234C93B00B2B68C /* NetInfo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NetInfo.m; sourceTree = SOURCE_ROOT; };
 		30F664221B28426A00C98B4D /* menustat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = menustat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		30F664251B28426A00C98B4D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		30F664271B28426A00C98B4D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -59,8 +58,8 @@
 		30F664241B28426A00C98B4D /* menustat */ = {
 			isa = PBXGroup;
 			children = (
-				30E7DFF21B28BDBE0035A9E4 /* NetInfo.swift */,
-				30C2AE1C1B2EB7AC00B1036D /* CPUInfo.swift */,
+				306B33AE2234C93B00B2B68C /* NetInfo.h */,
+				306B33AF2234C93B00B2B68C /* NetInfo.m */,
 				30F664331B2842E400C98B4D /* CPUInfo.m */,
 				30F664351B28432C00C98B4D /* CPUInfo.h */,
 				30F664251B28426A00C98B4D /* AppDelegate.swift */,
@@ -98,17 +97,18 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 0700;
-				LastUpgradeCheck = 0700;
+				LastUpgradeCheck = 1030;
 				ORGANIZATIONNAME = digitalsophistry;
 				TargetAttributes = {
 					30F664211B28426A00C98B4D = {
 						CreatedOnToolsVersion = 7.0;
+						LastSwiftMigration = 1030;
 					};
 				};
 			};
 			buildConfigurationList = 30F6641D1B28426A00C98B4D /* Build configuration list for PBXProject "menustat" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
@@ -141,10 +141,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				30C2AE1D1B2EB7AC00B1036D /* CPUInfo.swift in Sources */,
 				30F664341B2842E400C98B4D /* CPUInfo.m in Sources */,
 				30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */,
-				30E7DFF31B28BDBE0035A9E4 /* NetInfo.swift in Sources */,
+				306B33B02234C93B00B2B68C /* NetInfo.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,17 +165,28 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
@@ -203,6 +213,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -210,17 +221,28 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
@@ -239,6 +261,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.11;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
@@ -255,6 +279,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "menustat-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -270,6 +295,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.digitalsophistry.menustat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "menustat-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
