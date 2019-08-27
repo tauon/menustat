@@ -8,27 +8,22 @@
 #define CPUInfo_h
 
 #import <Foundation/Foundation.h>
+#include <mach/vm_map.h>
+#include <mach/mach_host.h>
 
 @interface CPUInfo : NSObject
 
-struct cpusample {
-    uint64_t totalSystemTime;
-    uint64_t totalUserTime;
-    uint64_t totalIdleTime;
-    
+struct CPULoad {
+    uint idle;
+    uint busy;
 };
 
-struct Load {
-    integer_t idle;
-    integer_t busy;
+struct CPULoads {
+    struct CPULoad* loads;
+    uint numProcs;
 };
 
-struct LoadDeltas {
-    struct Load* loads;
-    integer_t numCores;
-};
-
-- (struct LoadDeltas*)getLoad;
+- (struct CPULoads*)getCPULoadInfo;
 
 @end
 

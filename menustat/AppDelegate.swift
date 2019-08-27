@@ -12,47 +12,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @IBOutlet weak var window: NSWindow!
     @IBOutlet weak var buttonQuit: NSButton?
     @IBOutlet weak var networkInterfaceSelector: NSPopUpButton!
-    var menuItem = NSStatusBar.systemStatusBar().statusItemWithLength(NSVariableStatusItemLength)
+    var menuItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let cpuInfo = CPUInfo()
     let netInfo = NetInfo()
+    var cpuLoads = [Int]()
     var netBytesDownLast:UInt32 = 0
     var netBytesDownDelta:UInt32 = 0
     var netBytesUpLast:UInt32 = 0
     var netBytesUpDelta:UInt32 = 0
-    let cpuLoadString = "%3d%% %3d%% %6.1fk\n%3d%% %3d%% %6.1fk"
-    let updateIntervalSeconds:NSTimeInterval = 2
-    var interfaces:[String] = []
-    var selectedNetworkInterface = "en0"
+    let cpuLoadString = "%3d%% %3d%% %6d k/s\n%3d%% %3d%% %6d k/s"
+    let updateIntervalSeconds:TimeInterval = 1
 
-    func applicationDidFinishLaunching(aNotification: NSNotification) {
+    func applicationDidFinishLaunching(_ aNotification: Notification) {
         menuItem.button?.font = NSFont(name: "Menlo", size:9)!
         menuItem.action = #selector(AppDelegate.showWindow)
-        let interfaceStats = netInfo.getInterfaceStats()
-        for (iface, _) in interfaceStats {
-            interfaces.append(iface)
-        }
-        networkInterfaceSelector.addItemsWithTitles(interfaces)
 
-        let t = NSTimer(
+        let t = Timer(
             timeInterval: updateIntervalSeconds,
             target:self,
             selector: #selector(AppDelegate.update),
             userInfo: nil,
             repeats: true)
-        NSRunLoop.currentRunLoop().addTimer(t, forMode: NSRunLoopCommonModes)
+
+        RunLoop.current.add(t, forMode: RunLoop.Mode.common)
     }
 
-    func showWindow() {
-        NSApp.activateIgnoringOtherApps(true)
+    @objc func showWindow() {
+        NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
 
-    func update() {
-        let loadDeltas = cpuInfo.getLoad()
-        let numCores = Int(loadDeltas.memory.numCores)
-        var cpuLoads = [Int](count: numCores, repeatedValue: 0)
-        for i in 0 ..< numCores {
-            let load = loadDeltas.memory.loads[i]
+    @objc func update() {
+        let cpuLoadInfo = cpuInfo.getCPULoad()
+        if cpuLoads.count < 1 {
+            cpuLoads = Array(repeating: 0, count: Int(cpuLoadInfo!.pointee.numProcs))
+        }
+        for i in 0 ..< cpuLoads.count {
+            let load = cpuLoadInfo!.pointee.loads[i]
             let busy = load.busy
             let idle = load.idle
             if idle != 0 {
@@ -61,38 +57,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 cpuLoads[i] = 100
             }
         }
-        let s = netInfo.getInterfaceStats()
-        let totalDownNow = (s[selectedNetworkInterface]?.totalin)!
-        if netBytesDownLast != 0 {
-            netBytesDownDelta = totalDownNow - netBytesDownLast
-        }
-        netBytesDownLast = totalDownNow
-        let totalUpNow = (s[selectedNetworkInterface]?.totalout)!
-        if netBytesUpLast != 0 {
-            netBytesUpDelta = totalUpNow - netBytesUpLast
-        }
-        netBytesUpLast = totalUpNow
-        let netDownKiloBytesPerSecond:Double = (Double(netBytesDownDelta) / 1000) / updateIntervalSeconds
-        let netUpKiloBytesPerSecond:Double = (Double(netBytesUpDelta) / 1000) / updateIntervalSeconds
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)) {
-            dispatch_async(dispatch_get_main_queue()) {
-self.menuItem.title = NSString(format: self.cpuLoadString, cpuLoads[0], cpuLoads[1], netUpKiloBytesPerSecond, cpuLoads[2], cpuLoads[3], netDownKiloBytesPerSecond) as String
-            }
+        let netStats = netInfo.getInterfaceStats()
+        let bytesIn = netStats!.pointee.delta_bytes_in
+        let bytesOut = netStats!.pointee.delta_bytes_out
+        self.menuItem.title = String(format: self.cpuLoadString, cpuLoads[0], cpuLoads[1], Int(bytesOut/1024), cpuLoads[2], cpuLoads[3], Int(bytesIn/1024))
         }
 
-    }
 
     func applicationWillTerminate(aNotification: NSNotification) {
     }
 
     @IBAction func doQuit(x:NSButton) {
-        NSApplication.sharedApplication().terminate(self)
-    }
-
-    @IBAction func doSelectNetworkInterface(x:NSPopUpButton) {
-        selectedNetworkInterface = x.titleOfSelectedItem!
-        netBytesDownLast = 0
-        netBytesUpLast = 0
+        exit(0)
     }
 }
 

@@ -2,18 +2,23 @@
 //  NetInfo.h
 //  menustat
 //
-//  Created by muon on 6/10/15.
-//  Copyright © 2015 digitalsophistry. All rights reserved.
-//
+//  Created by jeff on 6/10/15.
 
 #ifndef NetInfo_h
 #define NetInfo_h
 
 #import <Foundation/Foundation.h>
 
+typedef struct net_info {
+    UInt64 total_bytes_in;
+    UInt64 total_bytes_out;
+    UInt64 delta_bytes_in;
+    UInt64 delta_bytes_out;
+} net_info;
+
 @interface NetInfo : NSObject
 
-- (uint)getTransmitBytes;
+- (net_info*)getInterfaceStats;
 
 @end
 
