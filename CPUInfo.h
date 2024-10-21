@@ -1,17 +1,10 @@
-//
-//  CPUInfo.h
-//  menustat
-//
-//  Created by jeff on 6/10/15.
-
 #ifndef CPUInfo_h
 #define CPUInfo_h
 
 #import <Foundation/Foundation.h>
-#include <mach/vm_map.h>
+#include <mach/mach.h>
+#include <mach/processor_info.h>
 #include <mach/mach_host.h>
-
-@interface CPUInfo : NSObject
 
 struct CPULoad {
     uint idle;
@@ -22,6 +15,11 @@ struct CPULoads {
     struct CPULoad* loads;
     uint numProcs;
 };
+
+@interface CPUInfo : NSObject {
+    struct CPULoads* loads;
+    struct CPULoad* lastLoads;
+}
 
 - (struct CPULoads*)getCPULoadInfo;
 
