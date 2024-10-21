@@ -3,10 +3,11 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		300A9E502CC60D5000D883B1 /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300A9E4F2CC60D5000D883B1 /* StatusBarView.swift */; };
 		306B33B02234C93B00B2B68C /* NetInfo.m in Sources */ = {isa = PBXBuildFile; fileRef = 306B33AF2234C93B00B2B68C /* NetInfo.m */; };
 		30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664251B28426A00C98B4D /* AppDelegate.swift */; };
 		30F664281B28426A00C98B4D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 30F664271B28426A00C98B4D /* Assets.xcassets */; };
@@ -15,6 +16,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		300A9E4F2CC60D5000D883B1 /* StatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarView.swift; sourceTree = "<group>"; };
 		306B33AE2234C93B00B2B68C /* NetInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetInfo.h; sourceTree = SOURCE_ROOT; };
 		306B33AF2234C93B00B2B68C /* NetInfo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NetInfo.m; sourceTree = SOURCE_ROOT; };
 		30F664221B28426A00C98B4D /* menustat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = menustat.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -66,6 +68,7 @@
 				30F664271B28426A00C98B4D /* Assets.xcassets */,
 				30F664291B28426A00C98B4D /* MainMenu.xib */,
 				30F6642C1B28426A00C98B4D /* Info.plist */,
+				300A9E4F2CC60D5000D883B1 /* StatusBarView.swift */,
 			);
 			path = menustat;
 			sourceTree = "<group>";
@@ -96,8 +99,9 @@
 		30F6641A1B28426A00C98B4D /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 0700;
-				LastUpgradeCheck = 1030;
+				LastUpgradeCheck = 1540;
 				ORGANIZATIONNAME = digitalsophistry;
 				TargetAttributes = {
 					30F664211B28426A00C98B4D = {
@@ -143,6 +147,7 @@
 			files = (
 				30F664341B2842E400C98B4D /* CPUInfo.m in Sources */,
 				30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */,
+				300A9E502CC60D5000D883B1 /* StatusBarView.swift in Sources */,
 				306B33B02234C93B00B2B68C /* NetInfo.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -184,6 +189,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -191,9 +197,11 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -240,6 +248,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -247,9 +256,11 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -272,8 +283,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = menustat/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.digitalsophistry.menustat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -289,8 +305,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = menustat/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.digitalsophistry.menustat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
