@@ -1,26 +1,21 @@
-//
-//  NetInfo.m
-//  menustat
-//
-//  Created by jeff on 6/10/15.
-
-#import <Foundation/Foundation.h>
 #import "NetInfo.h"
-
 #include <sys/sysctl.h>
 #include <net/if.h>
-
-// Route message from bsd/net/route.h
-#define RTM_IFINFO2 0x12
+#include <net/route.h>
 
 @implementation NetInfo
 
-struct net_info info = { 0, 0, 0, 0 };
-bool initial = true;
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        memset(&info, 0, sizeof(struct net_info));
+        initial = YES;
+    }
+    return self;
+}
 
--(net_info*)getInterfaceStats {
-    // from netstat implementation
-    int mib[] = {
+- (net_info*)getInterfaceStats {
+    int mib[6] = {
         CTL_NET, // networking subsystem
         PF_ROUTE, // type of information
         0, // protocol (IPPROTO_xxx)
@@ -29,25 +24,27 @@ bool initial = true;
         0
     };
     size_t len;
-    char *buf = NULL;
-    char *lim = NULL;
     if (sysctl(mib, 6, NULL, &len, NULL, 0) < 0) {
-        fprintf(stderr, "sysctl: %s\n", strerror(errno));
-        exit(1);
+        perror("sysctl");
+        return NULL;
     }
-    if ((buf = malloc(len)) == NULL) {
-        printf("malloc failed\n");
-        exit(1);
+    char *buf = malloc(len);
+    if (buf == NULL) {
+        perror("malloc");
+        return NULL;
     }
     if (sysctl(mib, 6, buf, &len, NULL, 0) < 0) {
-        fprintf(stderr, "sysctl: %s\n", strerror(errno));
-        exit(1);
+        perror("sysctl");
+        free(buf);
+        return NULL;
     }
-    lim = buf + len;
-    char *next = NULL;
-    u_int64_t total_bytes_in = 0;
-    u_int64_t total_bytes_out = 0;
-    for (next = buf; next < lim; ) {
+
+    char *lim = buf + len;
+    char *next = buf;
+    UInt64 total_bytes_in = 0;
+    UInt64 total_bytes_out = 0;
+
+    while (next < lim) {
         struct if_msghdr *ifm = (struct if_msghdr *)next;
         next += ifm->ifm_msglen;
         if (ifm->ifm_type == RTM_IFINFO2) {
@@ -57,13 +54,17 @@ bool initial = true;
         }
     }
     free(buf);
-    if(!initial) {
+
+    if (!initial) {
         info.delta_bytes_in = total_bytes_in - info.total_bytes_in;
         info.delta_bytes_out = total_bytes_out - info.total_bytes_out;
+    } else {
+        info.delta_bytes_in = 0;
+        info.delta_bytes_out = 0;
+        initial = NO;
     }
     info.total_bytes_in = total_bytes_in;
     info.total_bytes_out = total_bytes_out;
-    initial = false;
     return &info;
 }
 

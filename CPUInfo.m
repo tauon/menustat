@@ -1,57 +1,78 @@
-//
-//  CPUInfo.m
-//  menustat
-//
-//  Created by jeff on 6/10/15.
-
 #import "CPUInfo.h"
 
 @implementation CPUInfo
 
-processor_info_array_t processorInfo;
-mach_msg_type_number_t sizeProcessorLoadInfo;
-struct CPULoad* lastLoads;
-struct CPULoads* loads;
-uint numProcs;
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        loads = NULL;
+        lastLoads = NULL;
+    }
+    return self;
+}
 
-- (struct CPULoads*) getCPULoadInfo {
-    numProcs = 0;
-    kern_return_t err =
-        host_processor_info(
-                            mach_host_self(),
-                            PROCESSOR_CPU_LOAD_INFO,
-                            &numProcs,
-                            &processorInfo,
-                            &sizeProcessorLoadInfo);
-    if(err != KERN_SUCCESS) {
+- (void)dealloc {
+    if (loads) {
+        if (loads->loads) {
+            free(loads->loads);
+        }
+        free(loads);
+    }
+    if (lastLoads) {
+        free(lastLoads);
+    }
+    // ARC handles [super dealloc]
+}
+
+- (struct CPULoads*)getCPULoadInfo {
+    natural_t numCPUs;
+    kern_return_t kr;
+    processor_info_array_t cpuInfo;
+    mach_msg_type_number_t numCpuInfo;
+
+    kr = host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &numCPUs, &cpuInfo, &numCpuInfo);
+    if (kr != KERN_SUCCESS) {
         return NULL;
     }
-    if(!loads) {
+
+    if (!loads) {
         loads = malloc(sizeof(struct CPULoads));
-        loads->loads = malloc(sizeof(struct CPULoad) * numProcs);
-        loads->numProcs = numProcs;
+        loads->loads = malloc(sizeof(struct CPULoad) * numCPUs);
+        loads->numProcs = numCPUs;
     }
-    for(uint i = 0; i < numProcs; ++i) {
-        uint totalBusyTicks, totalIdleTicks = 0;
-        uint cpuStateOffset = CPU_STATE_MAX * i;
-        totalBusyTicks = processorInfo[cpuStateOffset + CPU_STATE_USER];
-        totalBusyTicks += processorInfo[cpuStateOffset + CPU_STATE_SYSTEM];
-        totalBusyTicks += processorInfo[cpuStateOffset + CPU_STATE_NICE];
-        totalIdleTicks = processorInfo[cpuStateOffset + CPU_STATE_IDLE];
-        if(!lastLoads) {
-            lastLoads = malloc(sizeof(struct CPULoad) * numProcs);
-            lastLoads[i].busy = totalBusyTicks;
-            lastLoads[i].idle = totalIdleTicks;
+
+    if (!lastLoads) {
+        lastLoads = malloc(sizeof(struct CPULoad) * numCPUs);
+        memset(lastLoads, 0, sizeof(struct CPULoad) * numCPUs);
+    }
+
+    for (unsigned int i = 0; i < numCPUs; ++i) {
+        uint32_t user = cpuInfo[(CPU_STATE_MAX * i) + CPU_STATE_USER];
+        uint32_t system = cpuInfo[(CPU_STATE_MAX * i) + CPU_STATE_SYSTEM];
+        uint32_t idle = cpuInfo[(CPU_STATE_MAX * i) + CPU_STATE_IDLE];
+        uint32_t nice = cpuInfo[(CPU_STATE_MAX * i) + CPU_STATE_NICE];
+
+        uint32_t totalTicks = user + system + idle + nice;
+        uint32_t busyTicks = totalTicks - idle;
+
+        if (totalTicks != 0) {
+            loads->loads[i].busy = busyTicks - lastLoads[i].busy;
+            loads->loads[i].idle = idle - lastLoads[i].idle;
+        } else {
+            loads->loads[i].busy = 0;
+            loads->loads[i].idle = 0;
         }
-        loads->loads[i].busy = totalBusyTicks - lastLoads[i].busy;
-        loads->loads[i].idle = totalIdleTicks - lastLoads[i].idle;
-        lastLoads[i].busy = totalBusyTicks;
-        lastLoads[i].idle = totalIdleTicks;
+
+        lastLoads[i].busy = busyTicks;
+        lastLoads[i].idle = idle;
     }
-        size_t prevCpuInfoSize = sizeof(integer_t) * numProcs;
-        vm_deallocate(mach_task_self(), (vm_address_t)processorInfo, prevCpuInfoSize);
-        processorInfo = NULL;
-        return loads;
+
+    kr = vm_deallocate(mach_task_self(), (vm_address_t)cpuInfo, numCpuInfo * sizeof(integer_t));
+    if (kr != KERN_SUCCESS) {
+        // uh oh
+    }
+
+    return loads;
 }
 
 @end

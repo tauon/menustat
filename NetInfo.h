@@ -1,9 +1,3 @@
-//
-//  NetInfo.h
-//  menustat
-//
-//  Created by jeff on 6/10/15.
-
 #ifndef NetInfo_h
 #define NetInfo_h
 
@@ -16,11 +10,13 @@ typedef struct net_info {
     UInt64 delta_bytes_out;
 } net_info;
 
-@interface NetInfo : NSObject
+@interface NetInfo : NSObject {
+    struct net_info info;
+    BOOL initial;
+}
 
 - (net_info*)getInterfaceStats;
 
 @end
-
 
 #endif /* NetInfo_h */
