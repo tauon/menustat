@@ -17,11 +17,12 @@
             free(loads->loads);
         }
         free(loads);
+        loads = NULL;
     }
     if (lastLoads) {
         free(lastLoads);
+        lastLoads = NULL;
     }
-    // ARC handles [super dealloc]
 }
 
 - (struct CPULoads*)getCPULoadInfo {

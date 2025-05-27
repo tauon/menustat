@@ -4,27 +4,31 @@ import Cocoa
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     @IBOutlet weak var window: NSWindow!
-    @IBOutlet weak var buttonQuit: NSButton?
-    @IBOutlet weak var networkInterfaceSelector: NSPopUpButton!
     var menuItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let cpuInfo = CPUInfo()
     let netInfo = NetInfo()
     var cpuLoads = [Int]()
-    let cpuLoadString = "%3d%% %3d%% %6d k/s\n%3d%% %3d%% %6d k/s"
+    var eCoreCount = 0
+    var pCoreCount = 0
     let updateIntervalSeconds: TimeInterval = 1
-    let fontSize:CGFloat = 8
+    let fontSize: CGFloat = 8
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // Get core counts
+        let coreCounts = getCoreCounts()
+        eCoreCount = coreCounts.eCoreCount
+        pCoreCount = coreCounts.pCoreCount
+
         // Configure the button
         if let button = menuItem.button {
             button.target = self
             button.action = #selector(showWindow)
-            button.image = nil // Remove any image if set
-            button.title = ""  // Start with an empty title
-            button.font = NSFont(name: "Menlo", size: fontSize) // Set initial font size
+            button.image = nil
+            button.title = ""
+            button.font = NSFont(name: "Menlo", size: fontSize)
         }
 
-        // Use scheduledTimer to ensure it runs on the main run loop
+        // Set up the timer
         Timer.scheduledTimer(
             timeInterval: updateIntervalSeconds,
             target: self,
@@ -33,23 +37,61 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             repeats: true)
     }
 
+    func getCoreCounts() -> (eCoreCount: Int, pCoreCount: Int) {
+        var eCoreCount: Int = 0
+        var pCoreCount: Int = 0
+        var size = MemoryLayout<Int>.size
+
+        sysctlbyname("hw.perflevel0.physicalcpu", &eCoreCount, &size, nil, 0)
+        sysctlbyname("hw.perflevel1.physicalcpu", &pCoreCount, &size, nil, 0)
+
+        return (eCoreCount, pCoreCount)
+    }
+
     @objc func showWindow() {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
 
+    func formatNetworkSpeed(_ bytesPerSecond: UInt64) -> String {
+        let kilobytesPerSecond = Double(bytesPerSecond) / 1024.0
+        let formattedString: String
+        if kilobytesPerSecond >= 1024.0 {
+            // Convert to megabytes per second
+            let megabytesPerSecond = kilobytesPerSecond / 1024.0
+            if megabytesPerSecond >= 100.0 {
+                // No decimal places; 100 M
+                formattedString = String(format: "%4.0f M", megabytesPerSecond)
+            } else if megabytesPerSecond >= 10.0 {
+                // One decimal place; 10.0 M
+                formattedString = String(format: "%4.1f M", megabytesPerSecond)
+            } else {
+                // Two decimal places; 1.00 M
+                formattedString = String(format: "%4.2f M", megabytesPerSecond)
+            }
+        } else {
+            // Kilobytes per second, no decimals; 100 k
+            formattedString = String(format: "%4.0f k", kilobytesPerSecond)
+        }
+        return formattedString
+    }
+
     @objc func update() {
         DispatchQueue.global(qos: .background).async {
             // Fetch CPU load info
-            guard let cpuLoadInfo = self.cpuInfo.getCPULoad()?.pointee else {
+            guard let cpuLoadInfoPtr = self.cpuInfo.getCPULoad() else {
                 print("Failed to get CPU load info")
                 return
             }
+            let cpuLoadInfo = cpuLoadInfoPtr.pointee
 
             // Initialize cpuLoads if necessary
             if self.cpuLoads.count != Int(cpuLoadInfo.numProcs) {
                 self.cpuLoads = Array(repeating: 0, count: Int(cpuLoadInfo.numProcs))
             }
+
+            var eCoreTotalUsage = 0
+            var pCoreTotalUsage = 0
 
             // Process CPU loads
             for i in 0 ..< self.cpuLoads.count {
@@ -57,57 +99,123 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let busy = load.busy
                 let idle = load.idle
                 let total = Double(busy + idle)
+                let usage: Int
                 if total != 0 {
-                    self.cpuLoads[i] = Int(round((Double(busy) / total) * 100))
+                    usage = Int(round((Double(busy) / total) * 100))
                 } else {
-                    self.cpuLoads[i] = 0
+                    usage = 0
+                }
+                self.cpuLoads[i] = usage
+
+                // Map cores to efficiency and performance cores
+                if i < self.eCoreCount {
+                    eCoreTotalUsage += usage
+                } else {
+                    pCoreTotalUsage += usage
                 }
             }
 
+            // Calculate average usage
+            let eCoreAverageUsage = self.eCoreCount > 0 ? eCoreTotalUsage / self.eCoreCount : 0
+            let pCoreAverageUsage = self.pCoreCount > 0 ? pCoreTotalUsage / self.pCoreCount : 0
+
             // Fetch network stats
-            guard let netStats = self.netInfo.getInterfaceStats()?.pointee else {
+            guard let netStatsPtr = self.netInfo.getInterfaceStats() else {
                 print("Failed to get network stats")
                 return
             }
+            let netStats = netStatsPtr.pointee
             let bytesIn = netStats.delta_bytes_in
             let bytesOut = netStats.delta_bytes_out
 
-            // Format status text
-            let statusText = String(
-                format: self.cpuLoadString,
-                self.cpuLoads[0],
-                self.cpuLoads[1],
-                Int(bytesOut / 1024),
-                self.cpuLoads[2],
-                self.cpuLoads[3],
-                Int(bytesIn / 1024)
-            )
+            // Format network speeds
+            let uploadSpeed = self.formatNetworkSpeed(bytesOut)
+            let downloadSpeed = self.formatNetworkSpeed(bytesIn)
 
-            // Create attributed string with paragraph style
+            // Format CPU usage strings
+            let eCoreUsageString = String(format: " %3d%%", eCoreAverageUsage)
+            let pCoreUsageString = String(format: " %3d%%", pCoreAverageUsage)
+
+            // Prepare attributes
             let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.lineBreakMode = .byWordWrapping
-            paragraphStyle.alignment = .center
-            paragraphStyle.lineSpacing = 0 // Adjust line spacing
-            paragraphStyle.maximumLineHeight = self.fontSize // Adjust line height
+            paragraphStyle.lineBreakMode = .byCharWrapping
+            paragraphStyle.alignment = .left
+            paragraphStyle.lineSpacing = -4
+            paragraphStyle.maximumLineHeight = self.fontSize
+            paragraphStyle.minimumLineHeight = self.fontSize
 
-            let attributes: [NSAttributedString.Key: Any] = [
-                .paragraphStyle: paragraphStyle
+            // Base attributes for normal text
+            let baseAttributes: [NSAttributedString.Key: Any] = [
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: NSColor.controlTextColor // Default text color
+            ]
+            
+            // Attributes for yellow text
+            let yellowAttributes: [NSAttributedString.Key: Any] = [
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: NSColor.yellow
             ]
 
-            let attributedStatusText = NSAttributedString(string: statusText, attributes: attributes)
+            // Attributes for red text
+            let redAttributes: [NSAttributedString.Key: Any] = [
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: NSColor.red
+            ]
 
-            // Update the button's attributedTitle on the main thread
+            // Create attributed strings
+            let uploadSpeedAttr = NSAttributedString(string: uploadSpeed, attributes: baseAttributes)
+            let downloadSpeedAttr = NSAttributedString(string: downloadSpeed, attributes: baseAttributes)
+
+            // Decide which attributes to use for CPU usage based on the percentage
+            var eCoreAttributes = baseAttributes
+            var pCoreAttributes = baseAttributes
+            
+            if eCoreAverageUsage < 50 {
+                eCoreAttributes = baseAttributes
+            } else if eCoreAverageUsage < 75 {
+                eCoreAttributes = yellowAttributes
+            } else {
+                eCoreAttributes = redAttributes
+            }
+            
+            if pCoreAverageUsage < 50 {
+                pCoreAttributes = baseAttributes
+            } else if pCoreAverageUsage < 75 {
+                pCoreAttributes = yellowAttributes
+            } else {
+                pCoreAttributes = redAttributes
+            }
+
+            let eCoreUsageAttr = NSAttributedString(string: eCoreUsageString, attributes: eCoreAttributes)
+            let pCoreUsageAttr = NSAttributedString(string: pCoreUsageString, attributes: pCoreAttributes)
+
+            // Create newlines
+            let newline = NSAttributedString(string: "\n", attributes: baseAttributes)
+
+            // Combine the attributed strings
+            let statusAttrString = NSMutableAttributedString()
+//            statusAttrString.append(eCoreUsageAttr)
+//            statusAttrString.append(uploadSpeedAttr)
+//            statusAttrString.append(newline)
+//            statusAttrString.append(pCoreUsageAttr)
+//            statusAttrString.append(downloadSpeedAttr)
+
+            statusAttrString.append(uploadSpeedAttr)
+            statusAttrString.append(eCoreUsageAttr)
+            statusAttrString.append(newline)
+            
+            statusAttrString.append(downloadSpeedAttr)
+            statusAttrString.append(pCoreUsageAttr)
+            
+
+            // Update UI on main thread
             DispatchQueue.main.async {
-                self.menuItem.button?.attributedTitle = attributedStatusText
+                self.menuItem.button?.attributedTitle = statusAttrString
             }
         }
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        // Clean up resources if necessary
-    }
-
-    @IBAction func doQuit(_ sender: NSButton) {
+    @IBAction func doQuit(_ sender: Any?) {
         NSApp.terminate(self)
     }
 }
