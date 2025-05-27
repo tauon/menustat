@@ -56,8 +56,25 @@
     free(buf);
 
     if (!initial) {
-        info.delta_bytes_in = total_bytes_in - info.total_bytes_in;
-        info.delta_bytes_out = total_bytes_out - info.total_bytes_out;
+        // Check for counter reset or overflow - if new total is less than previous total,
+        // or if the delta would be unreasonably large, reset the delta to 0
+        const UInt64 MAX_REASONABLE_DELTA = 10ULL * 1024ULL * 1024ULL * 1024ULL; // 10GB per second max
+        
+        if (total_bytes_in >= info.total_bytes_in) {
+            UInt64 delta_in = total_bytes_in - info.total_bytes_in;
+            info.delta_bytes_in = (delta_in <= MAX_REASONABLE_DELTA) ? delta_in : 0;
+        } else {
+            // Counter reset detected
+            info.delta_bytes_in = 0;
+        }
+        
+        if (total_bytes_out >= info.total_bytes_out) {
+            UInt64 delta_out = total_bytes_out - info.total_bytes_out;
+            info.delta_bytes_out = (delta_out <= MAX_REASONABLE_DELTA) ? delta_out : 0;
+        } else {
+            // Counter reset detected
+            info.delta_bytes_out = 0;
+        }
     } else {
         info.delta_bytes_in = 0;
         info.delta_bytes_out = 0;
