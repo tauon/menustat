@@ -22,7 +22,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // is actively looking at the menu.
     private let procQueue = DispatchQueue(label: "menustat.proc", qos: .userInitiated)
     private let procMonitor = ProcMonitor()
-    private var menuGeneration = 0
+    private var menuIsOpen = false
+    private var menuRefreshTimer: DispatchSourceTimer?
+
+    // nettop takes ~5s to start producing data, so the stream stays warm for
+    // a while after the menu closes and reopening it is instant.
+    private var netTopStream: NetTopStream?
+    private var netTopShutdownWork: DispatchWorkItem?
+    private let netTopKeepWarmSeconds: TimeInterval = 30
 
     // Latest cluster usage, written and read on the main queue.
     private var latestECoreUsage = 0
@@ -32,8 +39,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var cpuRowItems: [NSMenuItem] = []
     private var netRowItems: [NSMenuItem] = []
 
-    private lazy var menuFont = NSFont(name: "Menlo", size: 11)
-        ?? NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+    private lazy var menuFont = NSFont(name: "Menlo", size: 12)
+        ?? NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 
     private lazy var paragraphStyle: NSParagraphStyle = {
         let style = NSMutableParagraphStyle()
@@ -122,9 +129,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return menu
     }
 
+    // Info rows stay enabled: disabled menu items dim their attributed
+    // titles, which made the text hard to read.
     private func makeInfoItem() -> NSMenuItem {
         let item = NSMenuItem()
-        item.isEnabled = false
+        item.isEnabled = true
         return item
     }
 
@@ -152,8 +161,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        menuGeneration += 1
-        let generation = menuGeneration
+        menuIsOpen = true
 
         setRowTitle(clusterHeaderItem,
                     String(format: "Cores  E %3d%%   P %3d%%", latestECoreUsage, latestPCoreUsage))
@@ -161,39 +169,70 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             setRowTitle(item, "measuring…")
         }
 
-        procQueue.async { [weak self] in
-            guard let self = self else { return }
-            _ = self.procMonitor.topCPUProcesses(0) // establish the baseline
-            self.refreshOpenMenu(generation: generation)
+        netTopShutdownWork?.cancel()
+        netTopShutdownWork = nil
+        if netTopStream == nil {
+            let stream = NetTopStream()
+            stream.start()
+            netTopStream = stream
         }
+
+        // The first fire is immediate: with a warm stream and a CPU baseline
+        // from a previous open, the menu fills in right away.
+        let timer = DispatchSource.makeTimerSource(queue: procQueue)
+        timer.schedule(deadline: .now(), repeating: 1.0, leeway: .milliseconds(50))
+        timer.setEventHandler { [weak self] in
+            self?.refreshOpenMenu()
+        }
+        timer.resume()
+        menuRefreshTimer = timer
     }
 
     func menuDidClose(_ menu: NSMenu) {
-        menuGeneration += 1 // stops the refresh loop
+        menuIsOpen = false
+        menuRefreshTimer?.cancel()
+        menuRefreshTimer = nil
+
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self, !self.menuIsOpen else { return }
+            self.netTopStream?.stop()
+            self.netTopStream = nil
+            self.netTopShutdownWork = nil
+        }
+        netTopShutdownWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + netTopKeepWarmSeconds, execute: work)
     }
 
-    // Runs on procQueue; reschedules itself (via main, where menuGeneration
-    // lives) for as long as the menu stays open.
-    private func refreshOpenMenu(generation: Int) {
-        let net = ProcMonitor.topNetProcesses(topProcessCount) // blocks ~1s measuring
+    func applicationWillTerminate(_ notification: Notification) {
+        // script/nettop would outlive the app otherwise
+        netTopStream?.stop()
+    }
+
+    // Runs on procQueue once a second while the menu is open.
+    private func refreshOpenMenu() {
         let cpu = procMonitor.topCPUProcesses(topProcessCount)
+        let net = netTopStream?.latest(top: topProcessCount)
 
         DispatchQueue.main.async {
-            guard generation == self.menuGeneration else { return }
+            guard self.menuIsOpen else { return }
 
             self.setRowTitle(self.clusterHeaderItem,
                              String(format: "Cores  E %3d%%   P %3d%%",
                                     self.latestECoreUsage, self.latestPCoreUsage))
 
-            for (i, item) in self.cpuRowItems.enumerated() {
-                if i < cpu.count {
-                    self.setRowTitle(item, String(format: "%@ %6.1f%%",
-                                                  self.padName(cpu[i].name), cpu[i].cpuPercent))
-                } else {
-                    self.setRowTitle(item, "")
+            // empty means no baseline yet (first sample); keep "measuring…"
+            if !cpu.isEmpty {
+                for (i, item) in self.cpuRowItems.enumerated() {
+                    if i < cpu.count {
+                        self.setRowTitle(item, String(format: "%@ %6.1f%%",
+                                                      self.padName(cpu[i].name), cpu[i].cpuPercent))
+                    } else {
+                        self.setRowTitle(item, "")
+                    }
                 }
             }
 
+            // nil means the stream hasn't produced a delta sample yet
             if let net = net {
                 for (i, item) in self.netRowItems.enumerated() {
                     if i < net.count {
@@ -205,15 +244,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         self.setRowTitle(item, "")
                     }
                 }
-            } else {
-                self.setRowTitle(self.netRowItems[0], "nettop unavailable")
-                for item in self.netRowItems.dropFirst() {
-                    self.setRowTitle(item, "")
-                }
-            }
-
-            self.procQueue.async {
-                self.refreshOpenMenu(generation: generation)
             }
         }
     }

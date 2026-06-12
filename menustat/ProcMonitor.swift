@@ -12,10 +12,8 @@ struct ProcNetUsage {
     let bytesOutPerSec: UInt64
 }
 
-// Per-process CPU and network usage for the dropdown menu. CPU comes from
-// libproc rusage deltas (processes owned by other users are skipped because
-// proc_pid_rusage denies access to them). Network comes from nettop, since
-// macOS has no public per-process byte-count API; nettop works without root.
+// Per-process CPU usage from libproc rusage deltas. Processes owned by other
+// users are skipped because proc_pid_rusage denies access to them.
 //
 // Not thread-safe: call from a single serial queue.
 final class ProcMonitor {
@@ -27,8 +25,6 @@ final class ProcMonitor {
         mach_timebase_info(&info)
         return info
     }()
-
-    // MARK: - CPU
 
     // Returns the top processes by CPU since the previous call; empty on the
     // first call (no baseline yet). Percentages are per-core, so a process
@@ -91,63 +87,136 @@ final class ProcMonitor {
     private func machTimeToNs(_ machTime: UInt64) -> UInt64 {
         return machTime * UInt64(timebase.numer) / UInt64(timebase.denom)
     }
+}
 
-    // MARK: - Network
+// Streams per-process network rates from a long-running nettop, since macOS
+// has no public per-process byte-count API (nettop works without root).
+//
+// nettop writes to a pty we allocate, not a pipe: stdio block-buffers pipe
+// output, which only flushes every ~4 samples and made readings lag by
+// several seconds.
+final class NetTopStream {
 
-    // Blocks for ~intervalSeconds while nettop measures per-process deltas.
-    // Returns nil if nettop fails.
-    static func topNetProcesses(_ count: Int, intervalSeconds: Int = 1) -> [ProcNetUsage]? {
-        let task = Process()
+    private let task = Process()
+    private var masterHandle: FileHandle?
+    private var slaveHandle: FileHandle?
+
+    private let lock = NSLock()
+    private var latestRows: [ProcNetUsage]?
+
+    // Parser state, only touched from the readability handler's queue.
+    private var lineRemainder = ""
+    private var blockIndex = 0
+    private var currentRows: [ProcNetUsage] = []
+
+    func start() {
+        let masterFD = posix_openpt(O_RDWR | O_NOCTTY)
+        guard masterFD >= 0 else { return }
+        guard grantpt(masterFD) == 0, unlockpt(masterFD) == 0,
+              let slaveName = ptsname(masterFD) else {
+            close(masterFD)
+            return
+        }
+        let slaveFD = open(String(cString: slaveName), O_RDWR | O_NOCTTY)
+        guard slaveFD >= 0 else {
+            close(masterFD)
+            return
+        }
+        let master = FileHandle(fileDescriptor: masterFD, closeOnDealloc: true)
+        let slave = FileHandle(fileDescriptor: slaveFD, closeOnDealloc: true)
+        masterHandle = master
+        slaveHandle = slave
+
         task.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        // -d makes the second of the two logged samples a per-interval delta
+        // -d makes every sample after the first a per-interval delta
         task.arguments = ["-P", "-x", "-d",
                           "-J", "bytes_in,bytes_out",
-                          "-L", "2",
-                          "-s", String(intervalSeconds)]
-        let pipe = Pipe()
-        task.standardOutput = pipe
+                          "-L", "0", "-s", "1"]
+        task.standardOutput = slave
         task.standardError = FileHandle.nullDevice
+        task.standardInput = FileHandle.nullDevice
+
+        master.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard let self = self, !data.isEmpty else {
+                // EOF (nettop died) or the stream is gone; stop spinning
+                handle.readabilityHandler = nil
+                return
+            }
+            self.consume(data)
+        }
 
         do {
             try task.run()
         } catch {
-            return nil
+            master.readabilityHandler = nil
+            masterHandle = nil
+            slaveHandle = nil
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        task.waitUntilExit()
-        guard task.terminationStatus == 0, let output = String(data: data, encoding: .utf8) else {
-            return nil
-        }
+    }
 
-        // Output is two CSV blocks, each headed by a "time,..." line:
-        //   time,,bytes_in,bytes_out,
-        //   12:38:54.401049,mDNSResponder.712,287,131,
-        // The first block is cumulative since boot; only the delta block counts.
-        var usages: [ProcNetUsage] = []
-        var headersSeen = 0
-        for line in output.split(separator: "\n") {
-            if line.hasPrefix("time,") {
-                headersSeen += 1
-                continue
-            }
-            guard headersSeen >= 2 else { continue }
-            let fields = line.split(separator: ",", omittingEmptySubsequences: false)
-            guard fields.count >= 4,
-                  let bytesIn = UInt64(fields[2]),
-                  let bytesOut = UInt64(fields[3]),
-                  bytesIn + bytesOut > 0 else { continue }
-            // strip the ".pid" suffix nettop appends to the process name
-            var name = String(fields[1])
-            if let dot = name.lastIndex(of: ".") {
-                name = String(name[..<dot])
-            }
-            usages.append(ProcNetUsage(name: name,
-                                       bytesInPerSec: bytesIn / UInt64(intervalSeconds),
-                                       bytesOutPerSec: bytesOut / UInt64(intervalSeconds)))
+    func stop() {
+        masterHandle?.readabilityHandler = nil
+        if task.isRunning {
+            task.terminate()
         }
+        try? slaveHandle?.close()
+        try? masterHandle?.close()
+        masterHandle = nil
+        slaveHandle = nil
+    }
 
-        return Array(usages
+    // nil until the first delta sample has arrived (~2s after start).
+    func latest(top count: Int) -> [ProcNetUsage]? {
+        lock.lock()
+        let rows = latestRows
+        lock.unlock()
+        guard let rows = rows else { return nil }
+        return Array(rows
             .sorted { $0.bytesInPerSec + $0.bytesOutPerSec > $1.bytesInPerSec + $1.bytesOutPerSec }
             .prefix(count))
+    }
+
+    private func consume(_ data: Data) {
+        guard let chunk = String(data: data, encoding: .utf8) else { return }
+        var lines = (lineRemainder + chunk).components(separatedBy: "\n")
+        lineRemainder = lines.removeLast()
+
+        for rawLine in lines {
+            // the pty produces \r\n line endings
+            let line = rawLine.hasSuffix("\r") ? String(rawLine.dropLast()) : rawLine
+            if line.hasPrefix("time,") {
+                blockIndex += 1
+                currentRows = []
+                continue
+            }
+            // block 1 is cumulative since boot; deltas start with block 2
+            guard blockIndex >= 2, let row = NetTopStream.parseRow(line) else { continue }
+            currentRows.append(row)
+        }
+
+        // A block's rows arrive as one burst right after its header, so
+        // publishing after each chunk converges on the complete block well
+        // before the next sample.
+        if blockIndex >= 2 && !currentRows.isEmpty {
+            lock.lock()
+            latestRows = currentRows
+            lock.unlock()
+        }
+    }
+
+    // Sample lines look like: 12:38:54.401049,mDNSResponder.712,287,131,
+    private static func parseRow(_ line: String) -> ProcNetUsage? {
+        let fields = line.split(separator: ",", omittingEmptySubsequences: false)
+        guard fields.count >= 4,
+              let bytesIn = UInt64(fields[2]),
+              let bytesOut = UInt64(fields[3]),
+              bytesIn + bytesOut > 0 else { return nil }
+        // strip the ".pid" suffix nettop appends to the process name
+        var name = String(fields[1])
+        if let dot = name.lastIndex(of: ".") {
+            name = String(name[..<dot])
+        }
+        return ProcNetUsage(name: name, bytesInPerSec: bytesIn, bytesOutPerSec: bytesOut)
     }
 }
