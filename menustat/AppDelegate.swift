@@ -47,6 +47,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // monospacedSystemFont is SF Mono on modern macOS
     private lazy var menuFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
 
+    // Right-aligned tab stops give the number columns a hard right edge
+    // (more robust than space-padding), and the capped line height tightens
+    // the row spacing of the process lists.
+    private lazy var menuRowParagraphStyle: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.tabStops = [
+            NSTextTab(textAlignment: .right, location: 220, options: [:]),
+            NSTextTab(textAlignment: .right, location: 300, options: [:])
+        ]
+        style.lineBreakMode = .byClipping
+        style.minimumLineHeight = 12
+        style.maximumLineHeight = 12
+        return style
+    }()
+
     private lazy var paragraphStyle: NSParagraphStyle = {
         let style = NSMutableParagraphStyle()
         style.lineBreakMode = .byCharWrapping
@@ -78,7 +93,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let button = menuItem.button {
             button.image = nil
             button.title = ""
-            button.font = NSFont(name: "Menlo", size: fontSize)
+            button.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         }
         menuItem.menu = buildStatusMenu()
 
@@ -148,6 +163,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = makeInfoItem()
         item.attributedTitle = NSAttributedString(string: title, attributes: [
             .font: menuFont,
+            .paragraphStyle: menuRowParagraphStyle,
             .foregroundColor: NSColor.secondaryLabelColor
         ])
         return item
@@ -156,15 +172,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func setRowTitle(_ item: NSMenuItem, _ text: String) {
         item.attributedTitle = NSAttributedString(string: text, attributes: [
             .font: menuFont,
+            .paragraphStyle: menuRowParagraphStyle,
             .foregroundColor: NSColor.labelColor
         ])
     }
 
-    private func padName(_ name: String, _ width: Int = 24) -> String {
-        if name.count >= width {
-            return String(name.prefix(width))
-        }
-        return name.padding(toLength: width, withPad: " ", startingAt: 0)
+    private func truncateName(_ name: String, _ width: Int = 24) -> String {
+        return name.count > width ? String(name.prefix(width)) : name
     }
 
     // Runs on main.
@@ -247,20 +261,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if !cpu.isEmpty {
                 for (i, item) in self.cpuRowItems.enumerated() {
                     if i < cpu.count {
-                        self.setRowTitle(item, String(format: "%@ %6.1f%%",
-                                                      self.padName(cpu[i].name), cpu[i].cpuPercent))
+                        self.setRowTitle(item, String(format: "%@\t%.1f%%",
+                                                      self.truncateName(cpu[i].name), cpu[i].cpuPercent))
                     } else {
                         self.setRowTitle(item, "")
                     }
                 }
             }
 
-            // nil means the stream hasn't produced a delta sample yet
+            // nil means the subscription hasn't produced a delta sample yet
             if let net = net {
                 for (i, item) in self.netRowItems.enumerated() {
                     if i < net.count {
-                        self.setRowTitle(item, String(format: "%@ ↓%@  ↑%@",
-                                                      self.padName(net[i].name),
+                        self.setRowTitle(item, String(format: "%@\t↓%@\t↑%@",
+                                                      self.truncateName(net[i].name),
                                                       self.formatNetworkSpeed(net[i].bytesInPerSec),
                                                       self.formatNetworkSpeed(net[i].bytesOutPerSec)))
                     } else {
