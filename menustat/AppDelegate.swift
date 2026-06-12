@@ -39,28 +39,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var latestNetDown: UInt64 = 0
     private var latestNetUp: UInt64 = 0
 
-    private var clusterHeaderItem: NSMenuItem!
-    private var netTotalsItem: NSMenuItem!
-    private var cpuRowItems: [NSMenuItem] = []
-    private var netRowItems: [NSMenuItem] = []
+    private var clusterRow: MenuRowView!
+    private var netTotalsRow: MenuRowView!
+    private var cpuRows: [MenuRowView] = []
+    private var netRows: [MenuRowView] = []
 
     // monospacedSystemFont is SF Mono on modern macOS
     private lazy var menuFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-
-    // Right-aligned tab stops give the number columns a hard right edge
-    // (more robust than space-padding), and the capped line height tightens
-    // the row spacing of the process lists.
-    private lazy var menuRowParagraphStyle: NSParagraphStyle = {
-        let style = NSMutableParagraphStyle()
-        style.tabStops = [
-            NSTextTab(textAlignment: .right, location: 220, options: [:]),
-            NSTextTab(textAlignment: .right, location: 300, options: [:])
-        ]
-        style.lineBreakMode = .byClipping
-        style.minimumLineHeight = 12
-        style.maximumLineHeight = 12
-        return style
-    }()
 
     private lazy var paragraphStyle: NSParagraphStyle = {
         let style = NSMutableParagraphStyle()
@@ -123,25 +108,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Dropdown menu
 
+    // Rows are view-based menu items: the value label is frame-anchored to
+    // the right edge (text-layout tricks like tab stops don't survive
+    // NSMenu's content sizing), and the view's height sets the exact row
+    // height, much tighter than standard menu items.
+    private func addRow(to menu: NSMenu, secondary: Bool = false) -> MenuRowView {
+        let view = MenuRowView(font: menuFont, secondary: secondary)
+        let item = NSMenuItem()
+        item.view = view
+        menu.addItem(item)
+        return view
+    }
+
     private func buildStatusMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
         menu.autoenablesItems = false
 
-        clusterHeaderItem = makeInfoItem()
-        menu.addItem(clusterHeaderItem)
-        netTotalsItem = makeInfoItem()
-        menu.addItem(netTotalsItem)
+        clusterRow = addRow(to: menu)
+        netTotalsRow = addRow(to: menu)
         menu.addItem(.separator())
 
-        menu.addItem(makeHeaderItem("Top CPU"))
-        cpuRowItems = (0 ..< cpuRowCount).map { _ in makeInfoItem() }
-        cpuRowItems.forEach { menu.addItem($0) }
+        addRow(to: menu, secondary: true).nameField.stringValue = "Top CPU"
+        cpuRows = (0 ..< cpuRowCount).map { _ in addRow(to: menu) }
         menu.addItem(.separator())
 
-        menu.addItem(makeHeaderItem("Top Network  (↓ down  ↑ up)"))
-        netRowItems = (0 ..< netRowCount).map { _ in makeInfoItem() }
-        netRowItems.forEach { menu.addItem($0) }
+        addRow(to: menu, secondary: true).nameField.stringValue = "Top Network  (↓ down  ↑ up)"
+        netRows = (0 ..< netRowCount).map { _ in addRow(to: menu) }
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit", action: #selector(doQuit(_:)), keyEquivalent: "q")
@@ -151,51 +144,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return menu
     }
 
-    // Info rows stay enabled: disabled menu items dim their attributed
-    // titles, which made the text hard to read.
-    private func makeInfoItem() -> NSMenuItem {
-        let item = NSMenuItem()
-        item.isEnabled = true
-        return item
-    }
-
-    private func makeHeaderItem(_ title: String) -> NSMenuItem {
-        let item = makeInfoItem()
-        item.attributedTitle = NSAttributedString(string: title, attributes: [
-            .font: menuFont,
-            .paragraphStyle: menuRowParagraphStyle,
-            .foregroundColor: NSColor.secondaryLabelColor
-        ])
-        return item
-    }
-
-    private func setRowTitle(_ item: NSMenuItem, _ text: String) {
-        item.attributedTitle = NSAttributedString(string: text, attributes: [
-            .font: menuFont,
-            .paragraphStyle: menuRowParagraphStyle,
-            .foregroundColor: NSColor.labelColor
-        ])
-    }
-
-    private func truncateName(_ name: String, _ width: Int = 24) -> String {
-        return name.count > width ? String(name.prefix(width)) : name
+    private func setRow(_ row: MenuRowView, _ name: String, _ value: String) {
+        row.nameField.stringValue = name
+        row.valueField.stringValue = value
     }
 
     // Runs on main.
     private func updateSummaryItems() {
-        setRowTitle(clusterHeaderItem,
-                    String(format: "Cores  E %3d%%   P %3d%%", latestECoreUsage, latestPCoreUsage))
-        setRowTitle(netTotalsItem,
-                    String(format: "Net    ↓%@  ↑%@",
-                           formatNetworkSpeed(latestNetDown), formatNetworkSpeed(latestNetUp)))
+        setRow(clusterRow, "Cores",
+               String(format: "E %3d%%   P %3d%%", latestECoreUsage, latestPCoreUsage))
+        setRow(netTotalsRow, "Net",
+               String(format: "↓%@  ↑%@",
+                      formatNetworkSpeed(latestNetDown), formatNetworkSpeed(latestNetUp)))
     }
 
     func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
 
         updateSummaryItems()
-        for item in cpuRowItems + netRowItems {
-            setRowTitle(item, "measuring…")
+        for rows in [cpuRows, netRows] {
+            for (i, row) in rows.enumerated() {
+                setRow(row, i == 0 ? "measuring…" : "", "")
+            }
         }
 
         netStatsShutdownWork?.cancel()
@@ -259,26 +229,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             // empty means no baseline yet (first sample); keep "measuring…"
             if !cpu.isEmpty {
-                for (i, item) in self.cpuRowItems.enumerated() {
+                for (i, row) in self.cpuRows.enumerated() {
                     if i < cpu.count {
-                        self.setRowTitle(item, String(format: "%@\t%.1f%%",
-                                                      self.truncateName(cpu[i].name), cpu[i].cpuPercent))
+                        self.setRow(row, cpu[i].name, String(format: "%.1f%%", cpu[i].cpuPercent))
                     } else {
-                        self.setRowTitle(item, "")
+                        self.setRow(row, "", "")
                     }
                 }
             }
 
             // nil means the subscription hasn't produced a delta sample yet
             if let net = net {
-                for (i, item) in self.netRowItems.enumerated() {
+                for (i, row) in self.netRows.enumerated() {
                     if i < net.count {
-                        self.setRowTitle(item, String(format: "%@\t↓%@\t↑%@",
-                                                      self.truncateName(net[i].name),
-                                                      self.formatNetworkSpeed(net[i].bytesInPerSec),
-                                                      self.formatNetworkSpeed(net[i].bytesOutPerSec)))
+                        self.setRow(row, net[i].name,
+                                    String(format: "↓%@  ↑%@",
+                                           self.formatNetworkSpeed(net[i].bytesInPerSec),
+                                           self.formatNetworkSpeed(net[i].bytesOutPerSec)))
                     } else {
-                        self.setRowTitle(item, "")
+                        self.setRow(row, "", "")
                     }
                 }
             }
@@ -386,5 +355,49 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @IBAction func doQuit(_ sender: Any?) {
         NSApp.terminate(self)
+    }
+}
+
+// One process-list row: name on the left (truncating), value hard-anchored
+// to the right edge. The fixed frame keeps the menu width stable from the
+// first open and sets a row height tighter than standard menu items.
+final class MenuRowView: NSView {
+
+    static let rowWidth: CGFloat = 340
+    static let rowHeight: CGFloat = 15
+    static let sideInset: CGFloat = 14
+    static let nameWidth: CGFloat = 180
+
+    let nameField: NSTextField
+    let valueField: NSTextField
+
+    init(font: NSFont, secondary: Bool = false) {
+        let textHeight = ceil(font.ascender - font.descender + font.leading)
+        let textY = (Self.rowHeight - textHeight) / 2
+
+        nameField = NSTextField(labelWithString: "")
+        nameField.frame = NSRect(x: Self.sideInset, y: textY,
+                                 width: Self.nameWidth, height: textHeight)
+        nameField.lineBreakMode = .byTruncatingTail
+
+        let valueX = Self.sideInset + Self.nameWidth
+        valueField = NSTextField(labelWithString: "")
+        valueField.frame = NSRect(x: valueX, y: textY,
+                                  width: Self.rowWidth - valueX - Self.sideInset,
+                                  height: textHeight)
+        valueField.alignment = .right
+        valueField.lineBreakMode = .byClipping
+
+        super.init(frame: NSRect(x: 0, y: 0, width: Self.rowWidth, height: Self.rowHeight))
+
+        for field in [nameField, valueField] {
+            field.font = font
+            field.textColor = secondary ? .secondaryLabelColor : .labelColor
+            addSubview(field)
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
