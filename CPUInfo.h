@@ -16,9 +16,11 @@ struct CPULoads {
     uint numProcs;
 };
 
+// Not thread-safe: call getCPULoadInfo from a single serial queue.
 @interface CPUInfo : NSObject {
     struct CPULoads* loads;
     struct CPULoad* lastLoads;
+    host_t host;
 }
 
 - (struct CPULoads*)getCPULoadInfo;

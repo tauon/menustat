@@ -1,27 +1,6 @@
 #import "GPUInfo.h"
 #import <IOKit/IOKitLib.h>
 #import <IOKit/graphics/IOAccelTypes.h>
-// Add the printStats function here, before @implementation
-static void printStats(const typeof(struct {
-    uint32_t version;
-    uint32_t revision;
-    uint64_t task_gpu_utilisation;
-    uint64_t task_gpu_time;
-    uint64_t task_cpu_utilisation;
-    uint64_t task_cpu_time;
-    uint64_t task_io_utilisation;
-    uint64_t task_io_time;
-}) *stats) {
-    NSLog(@"Stats:");
-    NSLog(@"  Version: %u", stats->version);
-    NSLog(@"  Revision: %u", stats->revision);
-    NSLog(@"  GPU Utilisation: %llu", stats->task_gpu_utilisation);
-    NSLog(@"  GPU Time: %llu", stats->task_gpu_time);
-    NSLog(@"  CPU Utilisation: %llu", stats->task_cpu_utilisation);
-    NSLog(@"  CPU Time: %llu", stats->task_cpu_time);
-    NSLog(@"  IO Utilisation: %llu", stats->task_io_utilisation);
-    NSLog(@"  IO Time: %llu", stats->task_io_time);
-}
 
 @implementation GPUInfo
 
@@ -60,16 +39,10 @@ static void printStats(const typeof(struct {
         } stats;
         
         size_t statsSize = sizeof(stats);
-        uint32_t outputCount = 0;
-        
+
         result = IOConnectCallStructMethod(connect, 0 /* method index */, NULL, 0, &stats, &statsSize);
         if (result == KERN_SUCCESS) {
-            NSLog(@"asdasd");
-            // Assuming stats.task_gpu_utilisation gives you GPU utilization percentage
             gpuUsage.gpuCoreUtilization = stats.task_gpu_utilisation;
-            // Print the stats
-             printStats(&stats);
-            // Add any other stats you want to track
         } else {
             NSLog(@"Failed to get stats: %d", result);
         }
