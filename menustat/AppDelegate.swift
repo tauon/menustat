@@ -155,10 +155,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         row.valueField.stringValue = value
     }
 
-    // Runs on main.
+    // Runs on main. Both lines use symbol + 6-char field + 2 spaces +
+    // symbol + 6-char field, so E/P sit in the same columns as ↓/↑.
     private func updateSummaryItems() {
         setRow(clusterRow, "Cores",
-               String(format: "E %3d%%   P %3d%%", latestECoreUsage, latestPCoreUsage))
+               String(format: "E%5d%%  P%5d%%", latestECoreUsage, latestPCoreUsage))
         setRow(netTotalsRow, "Net",
                String(format: "↓%@  ↑%@",
                       formatNetworkSpeed(latestNetDown), formatNetworkSpeed(latestNetUp)))
