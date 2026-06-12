@@ -26,12 +26,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var menuIsOpen = false
     private var menuRefreshTimer: DispatchSourceTimer?
 
-    // Kernel flow subscription (NetworkStatistics). The first query after
-    // subscribing only establishes baselines, so it stays warm for a while
-    // after the menu closes and reopening shows data immediately.
+    // Kernel flow subscription (NetworkStatistics). Lives only while the
+    // menu is open; the first query establishes baselines, so rates appear
+    // one tick after opening.
     private var netProcStats: NetProcStats?
-    private var netStatsShutdownWork: DispatchWorkItem?
-    private let netStatsKeepWarmSeconds: TimeInterval = 30
 
     // Latest totals from the status item, written and read on the main queue.
     private var latestECoreUsage = 0
@@ -176,14 +174,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
 
-        netStatsShutdownWork?.cancel()
-        netStatsShutdownWork = nil
-        if netProcStats == nil {
-            let stats = NetProcStats(queue: procQueue)
-            netProcStats = stats
-            procQueue.async {
-                stats.start()
-            }
+        let stats = NetProcStats(queue: procQueue)
+        netProcStats = stats
+        procQueue.async {
+            stats.start()
         }
 
         // The first fire is immediate: with a warm stream and a CPU baseline
@@ -202,18 +196,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuRefreshTimer?.cancel()
         menuRefreshTimer = nil
 
-        let work = DispatchWorkItem { [weak self] in
-            guard let self = self, !self.menuIsOpen else { return }
-            if let stats = self.netProcStats {
-                self.procQueue.async {
-                    stats.stop()
-                }
+        if let stats = netProcStats {
+            netProcStats = nil
+            procQueue.async {
+                stats.stop()
             }
-            self.netProcStats = nil
-            self.netStatsShutdownWork = nil
         }
-        netStatsShutdownWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + netStatsKeepWarmSeconds, execute: work)
     }
 
     // Runs on procQueue once a second while the menu is open.
