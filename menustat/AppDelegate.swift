@@ -1,7 +1,7 @@
 import Cocoa
 
 @NSApplicationMain
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @IBOutlet weak var window: NSWindow!
     var menuItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -10,11 +10,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var eCoreCount = 0
     let updateIntervalSeconds: TimeInterval = 1
     let fontSize: CGFloat = 8
+    let topProcessCount = 5
 
     // CPUInfo and NetInfo keep mutable state between samples, so all sampling
     // runs on this single serial queue.
     private let sampleQueue = DispatchQueue(label: "menustat.sample", qos: .utility)
     private var updateTimer: DispatchSourceTimer?
+
+    // Per-process sampling only runs while the dropdown is open. ProcMonitor
+    // state is confined to this queue; it's .userInitiated because the user
+    // is actively looking at the menu.
+    private let procQueue = DispatchQueue(label: "menustat.proc", qos: .userInitiated)
+    private let procMonitor = ProcMonitor()
+    private var menuGeneration = 0
+
+    // Latest cluster usage, written and read on the main queue.
+    private var latestECoreUsage = 0
+    private var latestPCoreUsage = 0
+
+    private var clusterHeaderItem: NSMenuItem!
+    private var cpuRowItems: [NSMenuItem] = []
+    private var netRowItems: [NSMenuItem] = []
+
+    private lazy var menuFont = NSFont(name: "Menlo", size: 11)
+        ?? NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
 
     private lazy var paragraphStyle: NSParagraphStyle = {
         let style = NSMutableParagraphStyle()
@@ -44,14 +63,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         eCoreCount = getEfficiencyCoreCount()
 
-        // Configure the button
         if let button = menuItem.button {
-            button.target = self
-            button.action = #selector(showWindow)
             button.image = nil
             button.title = ""
             button.font = NSFont(name: "Menlo", size: fontSize)
         }
+        menuItem.menu = buildStatusMenu()
 
         // A dispatch timer on the sample queue coalesces missed fires, so
         // ticks can never pile up and run concurrently.
@@ -77,10 +94,131 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return count
     }
 
-    @objc func showWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+    // MARK: - Dropdown menu
+
+    private func buildStatusMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.delegate = self
+        menu.autoenablesItems = false
+
+        clusterHeaderItem = makeInfoItem()
+        menu.addItem(clusterHeaderItem)
+        menu.addItem(.separator())
+
+        menu.addItem(makeHeaderItem("Top CPU"))
+        cpuRowItems = (0 ..< topProcessCount).map { _ in makeInfoItem() }
+        cpuRowItems.forEach { menu.addItem($0) }
+        menu.addItem(.separator())
+
+        menu.addItem(makeHeaderItem("Top Network  (↓ down  ↑ up)"))
+        netRowItems = (0 ..< topProcessCount).map { _ in makeInfoItem() }
+        netRowItems.forEach { menu.addItem($0) }
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(doQuit(_:)), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        return menu
     }
+
+    private func makeInfoItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        item.isEnabled = false
+        return item
+    }
+
+    private func makeHeaderItem(_ title: String) -> NSMenuItem {
+        let item = makeInfoItem()
+        item.attributedTitle = NSAttributedString(string: title, attributes: [
+            .font: menuFont,
+            .foregroundColor: NSColor.secondaryLabelColor
+        ])
+        return item
+    }
+
+    private func setRowTitle(_ item: NSMenuItem, _ text: String) {
+        item.attributedTitle = NSAttributedString(string: text, attributes: [
+            .font: menuFont,
+            .foregroundColor: NSColor.labelColor
+        ])
+    }
+
+    private func padName(_ name: String, _ width: Int = 24) -> String {
+        if name.count >= width {
+            return String(name.prefix(width))
+        }
+        return name.padding(toLength: width, withPad: " ", startingAt: 0)
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        menuGeneration += 1
+        let generation = menuGeneration
+
+        setRowTitle(clusterHeaderItem,
+                    String(format: "Cores  E %3d%%   P %3d%%", latestECoreUsage, latestPCoreUsage))
+        for item in cpuRowItems + netRowItems {
+            setRowTitle(item, "measuring…")
+        }
+
+        procQueue.async { [weak self] in
+            guard let self = self else { return }
+            _ = self.procMonitor.topCPUProcesses(0) // establish the baseline
+            self.refreshOpenMenu(generation: generation)
+        }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        menuGeneration += 1 // stops the refresh loop
+    }
+
+    // Runs on procQueue; reschedules itself (via main, where menuGeneration
+    // lives) for as long as the menu stays open.
+    private func refreshOpenMenu(generation: Int) {
+        let net = ProcMonitor.topNetProcesses(topProcessCount) // blocks ~1s measuring
+        let cpu = procMonitor.topCPUProcesses(topProcessCount)
+
+        DispatchQueue.main.async {
+            guard generation == self.menuGeneration else { return }
+
+            self.setRowTitle(self.clusterHeaderItem,
+                             String(format: "Cores  E %3d%%   P %3d%%",
+                                    self.latestECoreUsage, self.latestPCoreUsage))
+
+            for (i, item) in self.cpuRowItems.enumerated() {
+                if i < cpu.count {
+                    self.setRowTitle(item, String(format: "%@ %6.1f%%",
+                                                  self.padName(cpu[i].name), cpu[i].cpuPercent))
+                } else {
+                    self.setRowTitle(item, "")
+                }
+            }
+
+            if let net = net {
+                for (i, item) in self.netRowItems.enumerated() {
+                    if i < net.count {
+                        self.setRowTitle(item, String(format: "%@ ↓%@  ↑%@",
+                                                      self.padName(net[i].name),
+                                                      self.formatNetworkSpeed(net[i].bytesInPerSec),
+                                                      self.formatNetworkSpeed(net[i].bytesOutPerSec)))
+                    } else {
+                        self.setRowTitle(item, "")
+                    }
+                }
+            } else {
+                self.setRowTitle(self.netRowItems[0], "nettop unavailable")
+                for item in self.netRowItems.dropFirst() {
+                    self.setRowTitle(item, "")
+                }
+            }
+
+            self.procQueue.async {
+                self.refreshOpenMenu(generation: generation)
+            }
+        }
+    }
+
+    // MARK: - Status item
 
     func formatNetworkSpeed(_ bytesPerSecond: UInt64) -> String {
         let kilobytesPerSecond = Double(bytesPerSecond) / 1024.0
@@ -171,6 +309,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Update UI on main thread
         DispatchQueue.main.async {
+            self.latestECoreUsage = eCoreAverageUsage
+            self.latestPCoreUsage = pCoreAverageUsage
             self.menuItem.button?.attributedTitle = statusAttrString
         }
     }
