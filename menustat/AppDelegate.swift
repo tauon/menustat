@@ -57,18 +57,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return style
     }()
 
+    // The centered two-line block draws its glyphs a hair high in the menu
+    // bar; a negative baseline offset shifts the drawn text down without
+    // changing the layout box the button centers.
+    private let statusBaselineOffset: CGFloat = -2
+
     private lazy var baseAttributes: [NSAttributedString.Key: Any] = [
         .paragraphStyle: paragraphStyle,
+        .baselineOffset: statusBaselineOffset,
         .foregroundColor: NSColor.controlTextColor
     ]
 
     private lazy var yellowAttributes: [NSAttributedString.Key: Any] = [
         .paragraphStyle: paragraphStyle,
+        .baselineOffset: statusBaselineOffset,
         .foregroundColor: NSColor.yellow
     ]
 
     private lazy var redAttributes: [NSAttributedString.Key: Any] = [
         .paragraphStyle: paragraphStyle,
+        .baselineOffset: statusBaselineOffset,
         .foregroundColor: NSColor.red
     ]
 
