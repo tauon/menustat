@@ -150,9 +150,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return menu
     }
 
-    private func setRow(_ row: MenuRowView, _ name: String, _ value: String) {
+    private func setRow(_ row: MenuRowView, _ name: String, _ value: String,
+                        valueColor: NSColor = .labelColor) {
         row.nameField.stringValue = name
         row.valueField.stringValue = value
+        row.valueField.textColor = valueColor
     }
 
     // Runs on main. Both lines use symbol + 6-char field + 2 spaces +
@@ -228,7 +230,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if !cpu.isEmpty {
                 for (i, row) in self.cpuRows.enumerated() {
                     if i < cpu.count {
-                        self.setRow(row, cpu[i].name, String(format: "%.1f%%", cpu[i].cpuPercent))
+                        let percent = cpu[i].cpuPercent
+                        // ≥99% is a pegged core (per-process values are
+                        // per-core, so they can exceed 100)
+                        let color: NSColor = percent >= 99 ? .red
+                            : percent >= 75 ? .yellow
+                            : .labelColor
+                        self.setRow(row, cpu[i].name, String(format: "%.1f%%", percent),
+                                    valueColor: color)
                     } else {
                         self.setRow(row, "", "")
                     }
