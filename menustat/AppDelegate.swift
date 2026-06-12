@@ -18,6 +18,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let sampleQueue = DispatchQueue(label: "menustat.sample", qos: .utility)
     private var updateTimer: DispatchSourceTimer?
 
+    // Confined to sampleQueue. The status item redraw is the main idle cost,
+    // so ticks are skipped entirely while the item is occluded (locked
+    // screen, fullscreen app) and redraws are skipped when nothing changed.
+    private var statusItemVisible = true
+    private var lastRenderedStatus = ""
+
     // Per-process sampling only runs while the dropdown is open. ProcMonitor
     // state is confined to this queue; it's .userInitiated because the user
     // is actively looking at the menu.
@@ -100,6 +106,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         timer.resume()
         updateTimer = timer
+
+        // Track whether the status item is actually on screen so update()
+        // can skip the work while it isn't.
+        if let window = menuItem.button?.window {
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didChangeOcclusionStateNotification,
+                object: window, queue: .main
+            ) { [weak self] notification in
+                guard let self = self else { return }
+                let visible = (notification.object as? NSWindow)?
+                    .occlusionState.contains(.visible) ?? true
+                self.sampleQueue.async {
+                    self.statusItemVisible = visible
+                    self.lastRenderedStatus = "" // force a redraw on return
+                }
+            }
+        }
     }
 
     // perflevel1 is the efficiency cluster (perflevel0 is performance), and
@@ -297,6 +320,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // Runs on sampleQueue.
     private func update() {
+        // Nobody can see the readout; skip the tick. CPU and net deltas
+        // normalize over the longer gap when the next visible tick runs.
+        if !statusItemVisible {
+            return
+        }
         guard let cpuLoadInfoPtr = cpuInfo.getCPULoad() else {
             print("Failed to get CPU load info")
             return
@@ -341,6 +369,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let eCoreUsageString = String(format: " %3d%%", eCoreAverageUsage)
         let pCoreUsageString = String(format: " %3d%%", pCoreAverageUsage)
 
+        // The redraw is the expensive part of a tick; skip it (and the main
+        // queue hop) when the rendered text would be identical. The colors
+        // derive from the percents, so equal text means equal rendering.
+        let rendered = uploadSpeed + eCoreUsageString + "\n" + downloadSpeed + pCoreUsageString
+        if rendered == lastRenderedStatus {
+            return
+        }
+        lastRenderedStatus = rendered
+
         // Combine the attributed strings
         let statusAttrString = NSMutableAttributedString()
         statusAttrString.append(NSAttributedString(string: uploadSpeed, attributes: baseAttributes))
@@ -356,6 +393,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.latestNetDown = netStats.delta_bytes_in
             self.latestNetUp = netStats.delta_bytes_out
             self.menuItem.button?.attributedTitle = statusAttrString
+
+            // The readout is fixed-width (monospace, constant char count).
+            // Freezing the item length after the first render lets later
+            // title sets skip the per-tick status bar layout renegotiation
+            // (NSStatusItemScene/FrontBoard IPC), the main idle CPU cost.
+            if self.menuItem.length == NSStatusItem.variableLength,
+               let button = self.menuItem.button {
+                button.sizeToFit()
+                self.menuItem.length = button.frame.width
+            }
         }
     }
 
