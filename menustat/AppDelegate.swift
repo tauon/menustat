@@ -10,7 +10,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var eCoreCount = 0
     let updateIntervalSeconds: TimeInterval = 1
     let fontSize: CGFloat = 8
-    let topProcessCount = 5
+    let cpuRowCount = 10
+    let netRowCount = 5
 
     // CPUInfo and NetInfo keep mutable state between samples, so all sampling
     // runs on this single serial queue.
@@ -32,16 +33,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var netStatsShutdownWork: DispatchWorkItem?
     private let netStatsKeepWarmSeconds: TimeInterval = 30
 
-    // Latest cluster usage, written and read on the main queue.
+    // Latest totals from the status item, written and read on the main queue.
     private var latestECoreUsage = 0
     private var latestPCoreUsage = 0
+    private var latestNetDown: UInt64 = 0
+    private var latestNetUp: UInt64 = 0
 
     private var clusterHeaderItem: NSMenuItem!
+    private var netTotalsItem: NSMenuItem!
     private var cpuRowItems: [NSMenuItem] = []
     private var netRowItems: [NSMenuItem] = []
 
-    private lazy var menuFont = NSFont(name: "Menlo", size: 12)
-        ?? NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+    // monospacedSystemFont is SF Mono on modern macOS
+    private lazy var menuFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
 
     private lazy var paragraphStyle: NSParagraphStyle = {
         let style = NSMutableParagraphStyle()
@@ -111,15 +115,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         clusterHeaderItem = makeInfoItem()
         menu.addItem(clusterHeaderItem)
+        netTotalsItem = makeInfoItem()
+        menu.addItem(netTotalsItem)
         menu.addItem(.separator())
 
         menu.addItem(makeHeaderItem("Top CPU"))
-        cpuRowItems = (0 ..< topProcessCount).map { _ in makeInfoItem() }
+        cpuRowItems = (0 ..< cpuRowCount).map { _ in makeInfoItem() }
         cpuRowItems.forEach { menu.addItem($0) }
         menu.addItem(.separator())
 
         menu.addItem(makeHeaderItem("Top Network  (↓ down  ↑ up)"))
-        netRowItems = (0 ..< topProcessCount).map { _ in makeInfoItem() }
+        netRowItems = (0 ..< netRowCount).map { _ in makeInfoItem() }
         netRowItems.forEach { menu.addItem($0) }
         menu.addItem(.separator())
 
@@ -161,11 +167,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return name.padding(toLength: width, withPad: " ", startingAt: 0)
     }
 
+    // Runs on main.
+    private func updateSummaryItems() {
+        setRowTitle(clusterHeaderItem,
+                    String(format: "Cores  E %3d%%   P %3d%%", latestECoreUsage, latestPCoreUsage))
+        setRowTitle(netTotalsItem,
+                    String(format: "Net    ↓%@  ↑%@",
+                           formatNetworkSpeed(latestNetDown), formatNetworkSpeed(latestNetUp)))
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
 
-        setRowTitle(clusterHeaderItem,
-                    String(format: "Cores  E %3d%%   P %3d%%", latestECoreUsage, latestPCoreUsage))
+        updateSummaryItems()
         for item in cpuRowItems + netRowItems {
             setRowTitle(item, "measuring…")
         }
@@ -212,7 +226,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // Runs on procQueue once a second while the menu is open.
     private func refreshOpenMenu() {
-        let cpu = procMonitor.topCPUProcesses(topProcessCount)
+        let cpu = procMonitor.topCPUProcesses(cpuRowCount)
         guard let stats = netProcStats else {
             applyMenuUpdate(cpu: cpu, net: nil)
             return
@@ -227,9 +241,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.async {
             guard self.menuIsOpen else { return }
 
-            self.setRowTitle(self.clusterHeaderItem,
-                             String(format: "Cores  E %3d%%   P %3d%%",
-                                    self.latestECoreUsage, self.latestPCoreUsage))
+            self.updateSummaryItems()
 
             // empty means no baseline yet (first sample); keep "measuring…"
             if !cpu.isEmpty {
@@ -352,6 +364,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.async {
             self.latestECoreUsage = eCoreAverageUsage
             self.latestPCoreUsage = pCoreAverageUsage
+            self.latestNetDown = netStats.delta_bytes_in
+            self.latestNetUp = netStats.delta_bytes_out
             self.menuItem.button?.attributedTitle = statusAttrString
         }
     }
