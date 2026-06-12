@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		306B33B02234C93B00B2B68C /* NetInfo.m in Sources */ = {isa = PBXBuildFile; fileRef = 306B33AF2234C93B00B2B68C /* NetInfo.m */; };
+		306B33C32234C93B00B2B68C /* NetProcStats.m in Sources */ = {isa = PBXBuildFile; fileRef = 306B33C22234C93B00B2B68C /* NetProcStats.m */; };
 		30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664251B28426A00C98B4D /* AppDelegate.swift */; };
 		30F664371B28433000C98B4D /* ProcMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664361B28433000C98B4D /* ProcMonitor.swift */; };
 		30F664281B28426A00C98B4D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 30F664271B28426A00C98B4D /* Assets.xcassets */; };
@@ -18,6 +19,8 @@
 /* Begin PBXFileReference section */
 		306B33AE2234C93B00B2B68C /* NetInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetInfo.h; sourceTree = SOURCE_ROOT; };
 		306B33AF2234C93B00B2B68C /* NetInfo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NetInfo.m; sourceTree = SOURCE_ROOT; };
+		306B33C12234C93B00B2B68C /* NetProcStats.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetProcStats.h; sourceTree = SOURCE_ROOT; };
+		306B33C22234C93B00B2B68C /* NetProcStats.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NetProcStats.m; sourceTree = SOURCE_ROOT; };
 		30F664221B28426A00C98B4D /* menustat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = menustat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		30F664251B28426A00C98B4D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		30F664361B28433000C98B4D /* ProcMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcMonitor.swift; sourceTree = "<group>"; };
@@ -62,6 +65,8 @@
 			children = (
 				306B33AE2234C93B00B2B68C /* NetInfo.h */,
 				306B33AF2234C93B00B2B68C /* NetInfo.m */,
+				306B33C12234C93B00B2B68C /* NetProcStats.h */,
+				306B33C22234C93B00B2B68C /* NetProcStats.m */,
 				30F664331B2842E400C98B4D /* CPUInfo.m */,
 				30F664351B28432C00C98B4D /* CPUInfo.h */,
 				30F664251B28426A00C98B4D /* AppDelegate.swift */,
@@ -149,6 +154,7 @@
 				30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */,
 				30F664371B28433000C98B4D /* ProcMonitor.swift in Sources */,
 				306B33B02234C93B00B2B68C /* NetInfo.m in Sources */,
+				306B33C32234C93B00B2B68C /* NetProcStats.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

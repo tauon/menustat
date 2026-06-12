@@ -25,11 +25,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var menuIsOpen = false
     private var menuRefreshTimer: DispatchSourceTimer?
 
-    // nettop takes ~5s to start producing data, so the stream stays warm for
-    // a while after the menu closes and reopening it is instant.
-    private var netTopStream: NetTopStream?
-    private var netTopShutdownWork: DispatchWorkItem?
-    private let netTopKeepWarmSeconds: TimeInterval = 30
+    // Kernel flow subscription (NetworkStatistics). The first query after
+    // subscribing only establishes baselines, so it stays warm for a while
+    // after the menu closes and reopening shows data immediately.
+    private var netProcStats: NetProcStats?
+    private var netStatsShutdownWork: DispatchWorkItem?
+    private let netStatsKeepWarmSeconds: TimeInterval = 30
 
     // Latest cluster usage, written and read on the main queue.
     private var latestECoreUsage = 0
@@ -169,12 +170,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             setRowTitle(item, "measuring…")
         }
 
-        netTopShutdownWork?.cancel()
-        netTopShutdownWork = nil
-        if netTopStream == nil {
-            let stream = NetTopStream()
-            stream.start()
-            netTopStream = stream
+        netStatsShutdownWork?.cancel()
+        netStatsShutdownWork = nil
+        if netProcStats == nil {
+            let stats = NetProcStats(queue: procQueue)
+            netProcStats = stats
+            procQueue.async {
+                stats.start()
+            }
         }
 
         // The first fire is immediate: with a warm stream and a CPU baseline
@@ -195,24 +198,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let work = DispatchWorkItem { [weak self] in
             guard let self = self, !self.menuIsOpen else { return }
-            self.netTopStream?.stop()
-            self.netTopStream = nil
-            self.netTopShutdownWork = nil
+            if let stats = self.netProcStats {
+                self.procQueue.async {
+                    stats.stop()
+                }
+            }
+            self.netProcStats = nil
+            self.netStatsShutdownWork = nil
         }
-        netTopShutdownWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + netTopKeepWarmSeconds, execute: work)
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        // script/nettop would outlive the app otherwise
-        netTopStream?.stop()
+        netStatsShutdownWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + netStatsKeepWarmSeconds, execute: work)
     }
 
     // Runs on procQueue once a second while the menu is open.
     private func refreshOpenMenu() {
         let cpu = procMonitor.topCPUProcesses(topProcessCount)
-        let net = netTopStream?.latest(top: topProcessCount)
+        guard let stats = netProcStats else {
+            applyMenuUpdate(cpu: cpu, net: nil)
+            return
+        }
+        stats.queryRates { [weak self] rows in
+            // runs on procQueue
+            self?.applyMenuUpdate(cpu: cpu, net: rows)
+        }
+    }
 
+    private func applyMenuUpdate(cpu: [ProcCPUUsage], net: [NetProcRow]?) {
         DispatchQueue.main.async {
             guard self.menuIsOpen else { return }
 
