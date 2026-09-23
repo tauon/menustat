@@ -8,7 +8,7 @@
     struct GPUUsage gpuUsage = {0, 0};
     
     io_iterator_t iterator;
-    kern_return_t result = IOServiceGetMatchingServices(kIOMasterPortDefault,
+    kern_return_t result = IOServiceGetMatchingServices(kIOMainPortDefault,
                                                         IOServiceMatching("IOAccelerator"),
                                                         &iterator);
     if (result != KERN_SUCCESS) {

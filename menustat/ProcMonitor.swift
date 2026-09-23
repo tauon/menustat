@@ -12,62 +12,94 @@ struct ProcCPUUsage {
 // Not thread-safe: call from a single serial queue.
 final class ProcMonitor {
 
-    private var lastCPUTimes: [pid_t: UInt64] = [:]
-    private var lastSampleTimeNs: UInt64 = 0
-    private let timebase: mach_timebase_info_data_t = {
-        var info = mach_timebase_info_data_t()
-        mach_timebase_info(&info)
-        return info
-    }()
+    private struct Sample {
+        let startTime: UInt64
+        let cpuTime: UInt64
+    }
+
+    private var lastSamples: [pid_t: Sample] = [:]
+    private var currentSamples: [pid_t: Sample] = [:]
+    private var lastSampleTime: UInt64 = 0
+    private var pidBuffer: [pid_t] = []
+
+    // A reopened menu needs a fresh baseline, not an average over the time
+    // it was closed. Retain the storage for the next sampling session.
+    func reset() {
+        lastSamples.removeAll(keepingCapacity: true)
+        currentSamples.removeAll(keepingCapacity: true)
+        lastSampleTime = 0
+    }
 
     // Returns the top processes by CPU since the previous call; empty on the
     // first call (no baseline yet). Percentages are per-core, so a process
     // with several busy threads can exceed 100, like Activity Monitor.
     func topCPUProcesses(_ count: Int) -> [ProcCPUUsage] {
-        let now = clock_gettime_nsec_np(CLOCK_MONOTONIC)
-        var currentTimes: [pid_t: UInt64] = [:]
-        currentTimes.reserveCapacity(lastCPUTimes.count + 16)
-        var usages: [ProcCPUUsage] = []
+        guard count > 0 else { return [] }
+        // rusage CPU times and mach_absolute_time use the same Mach ticks.
+        // Taking their ratio avoids conversions (and cumulative overflow).
+        let now = mach_absolute_time()
+        let elapsed = now - lastSampleTime
+        let havePrevious = lastSampleTime != 0 && elapsed > 0
+        let pidCount = loadPids()
+        currentSamples.removeAll(keepingCapacity: true)
+        currentSamples.reserveCapacity(lastSamples.count + 16)
+        var top: [(pid: pid_t, percent: Double)] = []
+        top.reserveCapacity(min(count, pidCount))
 
-        let elapsedNs = now - lastSampleTimeNs
-        let havePrevious = lastSampleTimeNs != 0 && elapsedNs > 0
-
-        for pid in allPids() {
-            var info = rusage_info_current()
+        for pid in pidBuffer.prefix(pidCount) where pid > 0 {
+            // V0 contains everything needed here. CURRENT asks the kernel
+            // for additional accounting and can change with a newer SDK.
+            var info = rusage_info_v0()
             let ok = withUnsafeMutablePointer(to: &info) {
                 $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
-                    proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, $0)
+                    proc_pid_rusage(pid, RUSAGE_INFO_V0, $0)
                 }
             }
             guard ok == 0 else { continue }
 
-            let cpuTimeNs = machTimeToNs(info.ri_user_time + info.ri_system_time)
-            currentTimes[pid] = cpuTimeNs
+            let cpuTime = info.ri_user_time + info.ri_system_time
+            currentSamples[pid] = Sample(startTime: info.ri_proc_start_abstime, cpuTime: cpuTime)
 
-            // A pid absent from the previous sample is new (or a reused pid);
-            // it has no baseline, so it joins the list next sample.
-            guard havePrevious, let previous = lastCPUTimes[pid], cpuTimeNs >= previous else {
+            // New processes and reused PIDs need their own baseline.
+            guard havePrevious, let previous = lastSamples[pid],
+                  previous.startTime == info.ri_proc_start_abstime,
+                  cpuTime >= previous.cpuTime else {
                 continue
             }
-            let percent = Double(cpuTimeNs - previous) / Double(elapsedNs) * 100.0
-            usages.append(ProcCPUUsage(pid: pid, name: processName(pid), cpuPercent: percent))
+            let percent = Double(cpuTime - previous.cpuTime) / Double(elapsed) * 100.0
+            // Keep only the requested rows, with deterministic PID ordering
+            // for ties. Resolve names only after choosing the winners.
+            let index = top.firstIndex {
+                percent > $0.percent || (percent == $0.percent && pid < $0.pid)
+            } ?? top.endIndex
+            if index < count {
+                top.insert((pid, percent), at: index)
+                if top.count > count { top.removeLast() }
+            }
         }
 
-        lastCPUTimes = currentTimes
-        lastSampleTimeNs = now
+        swap(&lastSamples, &currentSamples)
+        lastSampleTime = now
 
-        return Array(usages.sorted { $0.cpuPercent > $1.cpuPercent }.prefix(count))
+        return top.map { ProcCPUUsage(pid: $0.pid, name: processName($0.pid), cpuPercent: $0.percent) }
     }
 
-    private func allPids() -> [pid_t] {
-        let expected = proc_listallpids(nil, 0)
-        guard expected > 0 else { return [] }
-        // headroom for processes spawned between the two calls
-        var pids = [pid_t](repeating: 0, count: Int(expected) + 64)
-        let bytes = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
-        guard bytes > 0 else { return [] }
-        let count = min(Int(bytes) / MemoryLayout<pid_t>.size, pids.count)
-        return Array(pids.prefix(count)).filter { $0 > 0 }
+    private func loadPids() -> Int {
+        if pidBuffer.isEmpty {
+            let expected = proc_listallpids(nil, 0)
+            guard expected > 0 else { return 0 }
+            pidBuffer = [pid_t](repeating: 0, count: Int(expected) + 64)
+        }
+        // Usually one syscall into reused storage. Retry a full buffer so a
+        // process burst cannot silently truncate the list.
+        for _ in 0..<4 {
+            let count = proc_listallpids(&pidBuffer, Int32(pidBuffer.count * MemoryLayout<pid_t>.size))
+            guard count > 0 else { return 0 }
+            // Unlike proc_listpids, proc_listallpids returns a PID count.
+            if Int(count) < pidBuffer.count { return Int(count) }
+            pidBuffer += [pid_t](repeating: 0, count: pidBuffer.count)
+        }
+        return 0
     }
 
     private func processName(_ pid: pid_t) -> String {
@@ -76,9 +108,5 @@ final class ProcMonitor {
             return "pid \(pid)"
         }
         return String(cString: buffer)
-    }
-
-    private func machTimeToNs(_ machTime: UInt64) -> UInt64 {
-        return machTime * UInt64(timebase.numer) / UInt64(timebase.denom)
     }
 }

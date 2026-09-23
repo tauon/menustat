@@ -63,6 +63,8 @@ static BOOL loadNetworkStatistics(void) {
     NStatManagerRef _manager;
     NSMutableDictionary<NSValue *, NetSrcState *> *_sources;
     uint64_t _lastQueryTimeNs;
+    BOOL _queryPending;
+    uint64_t _generation;
 }
 
 - (instancetype)initWithQueue:(dispatch_queue_t)queue {
@@ -88,11 +90,13 @@ static BOOL loadNetworkStatistics(void) {
     }
     _sources = [NSMutableDictionary dictionary];
     _lastQueryTimeNs = 0;
+    _queryPending = NO;
+    _generation++;
 
     // The blocks capture the dictionary rather than self so a stopped
     // instance can't be retained by stale framework callbacks.
     NSMutableDictionary<NSValue *, NetSrcState *> *sources = _sources;
-    _manager = sManagerCreate(kCFAllocatorDefault, _queue, ^(NStatSourceRef src, void *unused) {
+    _manager = sManagerCreate(kCFAllocatorDefault, _queue, ^(NStatSourceRef src, void *unused __unused) {
         NSValue *key = [NSValue valueWithPointer:src];
         NetSrcState *state = [NetSrcState new];
         sources[key] = state;
@@ -127,21 +131,26 @@ static BOOL loadNetworkStatistics(void) {
     }
     _sources = nil;
     _lastQueryTimeNs = 0;
+    _queryPending = NO;
+    _generation++;
 }
 
 - (void)queryRates:(void (^)(NSArray<NetProcRow *> * _Nullable))completion {
-    if (!_manager) {
+    if (!_manager || _queryPending) {
         completion(nil);
         return;
     }
     __weak NetProcStats *weakSelf = self;
+    _queryPending = YES;
+    uint64_t generation = _generation;
     // The completion runs on _queue after every source's counts block fired.
     sQueryUpdate(_manager, ^{
         NetProcStats *strongSelf = weakSelf;
-        if (!strongSelf || !strongSelf->_manager) {
+        if (!strongSelf || !strongSelf->_manager || strongSelf->_generation != generation) {
             completion(nil);
             return;
         }
+        strongSelf->_queryPending = NO;
         completion([strongSelf collectRates]);
     });
 }
@@ -156,7 +165,9 @@ static BOOL loadNetworkStatistics(void) {
     NSMutableDictionary<NSNumber *, NetProcRow *> *perProcess =
         haveInterval ? [NSMutableDictionary dictionary] : nil;
 
-    for (NetSrcState *state in _sources.allValues) {
+    // Avoid allocating an array containing every flow on each query.
+    for (NSValue *key in _sources) {
+        NetSrcState *state = _sources[key];
         uint64_t deltaRx = 0;
         uint64_t deltaTx = 0;
         // A counter that went backwards means the source was reused; treat

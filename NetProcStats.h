@@ -28,7 +28,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Reports each process's rate since the previous query, sorted busiest
 // first, excluding loopback flows. Passes nil until two queries have
-// happened (the first one establishes the baseline).
+// happened (the first one establishes the baseline), or if unavailable or
+// another query is pending. Only one asynchronous query can be in flight.
 - (void)queryRates:(void (^)(NSArray<NetProcRow *> * _Nullable rows))completion;
 
 @end

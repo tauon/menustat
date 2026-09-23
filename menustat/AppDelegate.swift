@@ -1,9 +1,18 @@
 import Cocoa
 
-@NSApplicationMain
+@main
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
-    @IBOutlet weak var window: NSWindow!
+    static func main() {
+        let application = NSApplication.shared
+        let delegate = AppDelegate()
+        application.delegate = delegate
+        // NSApplication's delegate is weak. Keep it alive for the event loop.
+        withExtendedLifetime(delegate) {
+            application.run()
+        }
+    }
+
     var menuItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let cpuInfo = CPUInfo()
     let netInfo = NetInfo()
@@ -17,6 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // runs on this single serial queue.
     private let sampleQueue = DispatchQueue(label: "menustat.sample", qos: .utility)
     private var updateTimer: DispatchSourceTimer?
+    private var occlusionObserver: NSObjectProtocol?
 
     // Confined to sampleQueue. The status item redraw is the main idle cost,
     // so ticks are skipped entirely while the item is occluded (locked
@@ -30,11 +40,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let procQueue = DispatchQueue(label: "menustat.proc", qos: .userInitiated)
     private let procMonitor = ProcMonitor()
     private var menuIsOpen = false
+    private var menuSession: UInt64 = 0
     private var menuRefreshTimer: DispatchSourceTimer?
 
-    // Kernel flow subscription (NetworkStatistics). Lives only while the
-    // menu is open; the first query establishes baselines, so rates appear
-    // one tick after opening.
+    // Main-queue ownership only. Methods on this subscription run on
+    // procQueue, using a captured instance for each menu session.
     private var netProcStats: NetProcStats?
 
     // Latest totals from the status item, written and read on the main queue.
@@ -110,18 +120,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Track whether the status item is actually on screen so update()
         // can skip the work while it isn't.
         if let window = menuItem.button?.window {
-            NotificationCenter.default.addObserver(
+            occlusionObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didChangeOcclusionStateNotification,
                 object: window, queue: .main
             ) { [weak self] notification in
                 guard let self = self else { return }
                 let visible = (notification.object as? NSWindow)?
                     .occlusionState.contains(.visible) ?? true
-                self.sampleQueue.async {
-                    self.statusItemVisible = visible
-                    self.lastRenderedStatus = "" // force a redraw on return
-                }
+                self.setStatusItemVisible(visible)
             }
+            setStatusItemVisible(window.occlusionState.contains(.visible))
+        }
+    }
+
+    private func setStatusItemVisible(_ visible: Bool) {
+        // Scheduling at distantFuture disarms the timer; returning early
+        // inside its handler would still wake the process every second.
+        let timer = updateTimer
+        sampleQueue.async {
+            self.statusItemVisible = visible
+            self.lastRenderedStatus = ""
+            timer?.schedule(deadline: visible ? .now() : .distantFuture,
+                            repeating: self.updateIntervalSeconds,
+                            leeway: .milliseconds(100))
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        updateTimer?.cancel()
+        menuDidClose(menuItem.menu ?? NSMenu())
+        if let observer = occlusionObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 
@@ -175,9 +204,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setRow(_ row: MenuRowView, _ name: String, _ value: String,
                         valueColor: NSColor = .labelColor) {
-        row.nameField.stringValue = name
-        row.valueField.stringValue = value
-        row.valueField.textColor = valueColor
+        if row.nameField.stringValue != name { row.nameField.stringValue = name }
+        if row.valueField.stringValue != value { row.valueField.stringValue = value }
+        if row.valueField.textColor != valueColor { row.valueField.textColor = valueColor }
     }
 
     // Runs on main. Both lines use symbol + 6-char field + 2 spaces +
@@ -192,6 +221,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
+        menuSession &+= 1
+        let session = menuSession
 
         updateSummaryItems()
         for rows in [cpuRows, netRows] {
@@ -203,15 +234,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let stats = NetProcStats(queue: procQueue)
         netProcStats = stats
         procQueue.async {
-            stats.start()
+            self.procMonitor.reset()
+            if !stats.start() {
+                DispatchQueue.main.async {
+                    guard self.menuIsOpen, self.menuSession == session else { return }
+                    self.setRow(self.netRows[0], "Unavailable", "")
+                }
+            }
         }
 
-        // The first fire is immediate: with a warm stream and a CPU baseline
-        // from a previous open, the menu fills in right away.
+        // Establish fresh baselines immediately. Rates follow on the next
+        // tick, without averaging over the time the menu was closed.
         let timer = DispatchSource.makeTimerSource(queue: procQueue)
         timer.schedule(deadline: .now(), repeating: 1.0, leeway: .milliseconds(50))
         timer.setEventHandler { [weak self] in
-            self?.refreshOpenMenu()
+            self?.refreshOpenMenu(stats: stats, session: session)
         }
         timer.resume()
         menuRefreshTimer = timer
@@ -219,6 +256,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuDidClose(_ menu: NSMenu) {
         menuIsOpen = false
+        menuSession &+= 1
         menuRefreshTimer?.cancel()
         menuRefreshTimer = nil
 
@@ -231,26 +269,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // Runs on procQueue once a second while the menu is open.
-    private func refreshOpenMenu() {
+    private func refreshOpenMenu(stats: NetProcStats, session: UInt64) {
         let cpu = procMonitor.topCPUProcesses(cpuRowCount)
-        guard let stats = netProcStats else {
-            applyMenuUpdate(cpu: cpu, net: nil)
-            return
-        }
+        // CPU results must not wait for an asynchronous network query.
+        applyMenuUpdate(cpu: cpu, net: nil, session: session)
         stats.queryRates { [weak self] rows in
             // runs on procQueue
-            self?.applyMenuUpdate(cpu: cpu, net: rows)
+            self?.applyMenuUpdate(cpu: nil, net: rows, session: session)
         }
     }
 
-    private func applyMenuUpdate(cpu: [ProcCPUUsage], net: [NetProcRow]?) {
+    private func applyMenuUpdate(cpu: [ProcCPUUsage]?, net: [NetProcRow]?, session: UInt64) {
         DispatchQueue.main.async {
-            guard self.menuIsOpen else { return }
+            guard self.menuIsOpen, self.menuSession == session else { return }
 
             self.updateSummaryItems()
 
             // empty means no baseline yet (first sample); keep "measuring…"
-            if !cpu.isEmpty {
+            if let cpu = cpu, !cpu.isEmpty {
                 for (i, row) in self.cpuRows.enumerated() {
                     if i < cpu.count {
                         let percent = cpu[i].cpuPercent
@@ -378,16 +414,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         lastRenderedStatus = rendered
 
-        // Combine the attributed strings
-        let statusAttrString = NSMutableAttributedString()
-        statusAttrString.append(NSAttributedString(string: uploadSpeed, attributes: baseAttributes))
-        statusAttrString.append(NSAttributedString(string: eCoreUsageString, attributes: attributes(forUsage: eCoreAverageUsage)))
-        statusAttrString.append(NSAttributedString(string: "\n", attributes: baseAttributes))
-        statusAttrString.append(NSAttributedString(string: downloadSpeed, attributes: baseAttributes))
-        statusAttrString.append(NSAttributedString(string: pCoreUsageString, attributes: attributes(forUsage: pCoreAverageUsage)))
-
-        // Update UI on main thread
+        // Build AppKit text attributes and update the UI on the main thread.
         DispatchQueue.main.async {
+            let statusAttrString = NSMutableAttributedString()
+            statusAttrString.append(NSAttributedString(string: uploadSpeed, attributes: self.baseAttributes))
+            statusAttrString.append(NSAttributedString(string: eCoreUsageString, attributes: self.attributes(forUsage: eCoreAverageUsage)))
+            statusAttrString.append(NSAttributedString(string: "\n", attributes: self.baseAttributes))
+            statusAttrString.append(NSAttributedString(string: downloadSpeed, attributes: self.baseAttributes))
+            statusAttrString.append(NSAttributedString(string: pCoreUsageString, attributes: self.attributes(forUsage: pCoreAverageUsage)))
+
             self.latestECoreUsage = eCoreAverageUsage
             self.latestPCoreUsage = pCoreAverageUsage
             self.latestNetDown = netStats.delta_bytes_in

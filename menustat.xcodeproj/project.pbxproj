@@ -12,7 +12,6 @@
 		30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664251B28426A00C98B4D /* AppDelegate.swift */; };
 		30F664371B28433000C98B4D /* ProcMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664361B28433000C98B4D /* ProcMonitor.swift */; };
 		30F664281B28426A00C98B4D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 30F664271B28426A00C98B4D /* Assets.xcassets */; };
-		30F6642B1B28426A00C98B4D /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 30F664291B28426A00C98B4D /* MainMenu.xib */; };
 		30F664341B2842E400C98B4D /* CPUInfo.m in Sources */ = {isa = PBXBuildFile; fileRef = 30F664331B2842E400C98B4D /* CPUInfo.m */; };
 /* End PBXBuildFile section */
 
@@ -139,7 +138,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				30F664281B28426A00C98B4D /* Assets.xcassets in Resources */,
-				30F6642B1B28426A00C98B4D /* MainMenu.xib in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

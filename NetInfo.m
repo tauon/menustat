@@ -1,5 +1,6 @@
 #import "NetInfo.h"
 #include <errno.h>
+#include <stddef.h>
 #include <time.h>
 #include <sys/sysctl.h>
 #include <net/if.h>
@@ -34,11 +35,20 @@
         0
     };
     for (int attempt = 0; attempt < 4; attempt++) {
-        size_t len;
+        size_t len = bufCapacity;
+        // The previous allocation normally fits. Avoid a second sysctl
+        // (and another interface traversal) on every steady-state sample.
+        if (buf && sysctl(mib, 6, buf, &len, NULL, 0) == 0) {
+            *outLen = len;
+            return YES;
+        }
+        if (buf && errno != ENOMEM) {
+            return NO;
+        }
         if (sysctl(mib, 6, NULL, &len, NULL, 0) < 0) {
             return NO;
         }
-        if (len > bufCapacity) {
+        if (len >= bufCapacity) {
             size_t newCapacity = len + len / 4;
             char *newBuf = realloc(buf, newCapacity);
             if (newBuf == NULL) {
@@ -46,14 +56,6 @@
             }
             buf = newBuf;
             bufCapacity = newCapacity;
-        }
-        len = bufCapacity;
-        if (sysctl(mib, 6, buf, &len, NULL, 0) == 0) {
-            *outLen = len;
-            return YES;
-        }
-        if (errno != ENOMEM) {
-            return NO;
         }
     }
     return NO;
@@ -73,13 +75,22 @@
     int count = 0;
 
     while (next < lim) {
+        // Address messages have shorter headers than interface messages;
+        // only length/version/type are common to every route message.
+        size_t headerSize = offsetof(struct if_msghdr, ifm_addrs);
+        if ((size_t)(lim - next) < headerSize) {
+            return NULL;
+        }
         struct if_msghdr *ifm = (struct if_msghdr *)next;
-        if (ifm->ifm_msglen == 0) {
-            break;
+        if (ifm->ifm_msglen < headerSize || ifm->ifm_msglen > lim - next) {
+            return NULL;
         }
         next += ifm->ifm_msglen;
         if (ifm->ifm_type != RTM_IFINFO2) {
             continue;
+        }
+        if (ifm->ifm_msglen < sizeof(struct if_msghdr2)) {
+            return NULL;
         }
         struct if_msghdr2 *if2m = (struct if_msghdr2 *)ifm;
         if (if2m->ifm_data.ifi_type == IFT_LOOP) {
