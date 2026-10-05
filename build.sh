@@ -19,7 +19,7 @@ done
 xcrun --sdk macosx swiftc -O -whole-module-optimization -warnings-as-errors \
     -sdk "$sdk_path" -target "$(uname -m)-apple-macosx$deployment_target" \
     -module-name menustat -import-objc-header menustat-Bridging-Header.h \
-    menustat/ProcMonitor.swift menustat/AppDelegate.swift \
+    menustat/ProcMonitor.swift menustat/NetworkRowHistory.swift menustat/AppDelegate.swift \
     "$build_stage/CPUInfo.o" "$build_stage/NetInfo.o" "$build_stage/NetProcStats.o" \
     -o "$app_bundle/Contents/MacOS/menustat"
 
@@ -39,6 +39,7 @@ cp menustat/Info.plist "$plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName menustat' "$plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIconFile AppIcon.icns' "$plist"
 /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $deployment_target" "$plist"
+/usr/libexec/PlistBuddy -c "Add :MenustatBuildDate string $(date +%Y%m%d-%H%M)" "$plist"
 plutil -lint "$plist"
 codesign --force --sign - "$app_bundle"
 codesign --verify --strict "$app_bundle"

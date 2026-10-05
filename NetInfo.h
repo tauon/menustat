@@ -16,6 +16,8 @@ typedef struct if_sample {
     UInt64 bytes_out;
 } if_sample;
 
+// Totals cover link interfaces (Ethernet/Wi-Fi, FireWire, cellular), excluding
+// loopback and logical overlays such as VPN tunnels to avoid double counting.
 // Not thread-safe: call getInterfaceStats from a single serial queue.
 @interface NetInfo : NSObject {
     struct net_info info;

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		30F664381B28433000C98B4D /* NetworkRowHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664391B28433000C98B4D /* NetworkRowHistory.swift */; };
 		306B33B02234C93B00B2B68C /* NetInfo.m in Sources */ = {isa = PBXBuildFile; fileRef = 306B33AF2234C93B00B2B68C /* NetInfo.m */; };
 		306B33C32234C93B00B2B68C /* NetProcStats.m in Sources */ = {isa = PBXBuildFile; fileRef = 306B33C22234C93B00B2B68C /* NetProcStats.m */; };
 		30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664251B28426A00C98B4D /* AppDelegate.swift */; };
@@ -16,6 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		30F664391B28433000C98B4D /* NetworkRowHistory.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NetworkRowHistory.swift; sourceTree = "<group>"; };
 		306B33AE2234C93B00B2B68C /* NetInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetInfo.h; sourceTree = SOURCE_ROOT; };
 		306B33AF2234C93B00B2B68C /* NetInfo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NetInfo.m; sourceTree = SOURCE_ROOT; };
 		306B33C12234C93B00B2B68C /* NetProcStats.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetProcStats.h; sourceTree = SOURCE_ROOT; };
@@ -70,6 +72,7 @@
 				30F664351B28432C00C98B4D /* CPUInfo.h */,
 				30F664251B28426A00C98B4D /* AppDelegate.swift */,
 				30F664361B28433000C98B4D /* ProcMonitor.swift */,
+				30F664391B28433000C98B4D /* NetworkRowHistory.swift */,
 				30F664271B28426A00C98B4D /* Assets.xcassets */,
 				30F664291B28426A00C98B4D /* MainMenu.xib */,
 				30F6642C1B28426A00C98B4D /* Info.plist */,
@@ -151,6 +154,7 @@
 				30F664341B2842E400C98B4D /* CPUInfo.m in Sources */,
 				30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */,
 				30F664371B28433000C98B4D /* ProcMonitor.swift in Sources */,
+				30F664381B28433000C98B4D /* NetworkRowHistory.swift in Sources */,
 				306B33B02234C93B00B2B68C /* NetInfo.m in Sources */,
 				306B33C32234C93B00B2B68C /* NetProcStats.m in Sources */,
 			);

@@ -57,6 +57,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var netTotalsRow: MenuRowView!
     private var cpuRows: [MenuRowView] = []
     private var netRows: [MenuRowView] = []
+    private var networkRowHistory = NetworkRowHistory()
 
     // monospacedSystemFont is SF Mono on modern macOS
     private lazy var menuFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
@@ -195,11 +196,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         netRows = (0 ..< netRowCount).map { _ in addRow(to: menu) }
         menu.addItem(.separator())
 
+        let buildItem = NSMenuItem(title: "Build \(buildStamp)", action: nil, keyEquivalent: "")
+        buildItem.isEnabled = false
+        menu.addItem(buildItem)
+
         let quitItem = NSMenuItem(title: "Quit", action: #selector(doQuit(_:)), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
         return menu
+    }
+
+    private var buildStamp: String {
+        if let stamp = Bundle.main.object(forInfoDictionaryKey: "MenustatBuildDate") as? String {
+            return stamp
+        }
+        // Xcode builds do not use build.sh; use the linked executable's date.
+        if let executable = Bundle.main.executableURL,
+           let values = try? executable.resourceValues(forKeys: [.contentModificationDateKey]),
+           let date = values.contentModificationDate {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyyMMdd-HHmm"
+            return formatter.string(from: date)
+        }
+        return "unknown"
     }
 
     private func setRow(_ row: MenuRowView, _ name: String, _ value: String,
@@ -221,6 +242,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
+        networkRowHistory.reset()
         menuSession &+= 1
         let session = menuSession
 
@@ -305,12 +327,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             // nil means the subscription hasn't produced a delta sample yet
             if let net = net {
+                let visible = self.networkRowHistory.update(net.map {
+                    NetworkRowHistory.Row(pid: $0.pid, name: $0.name,
+                                          bytesInPerSec: $0.bytesInPerSec,
+                                          bytesOutPerSec: $0.bytesOutPerSec)
+                }, at: ProcessInfo.processInfo.systemUptime, limit: self.netRowCount)
                 for (i, row) in self.netRows.enumerated() {
-                    if i < net.count {
-                        self.setRow(row, net[i].name,
+                    if i < visible.count {
+                        self.setRow(row, visible[i].name,
                                     String(format: "↓%@  ↑%@",
-                                           self.formatNetworkSpeed(net[i].bytesInPerSec),
-                                           self.formatNetworkSpeed(net[i].bytesOutPerSec)))
+                                           self.formatNetworkSpeed(visible[i].bytesInPerSec),
+                                           self.formatNetworkSpeed(visible[i].bytesOutPerSec)))
                     } else {
                         self.setRow(row, "", "")
                     }

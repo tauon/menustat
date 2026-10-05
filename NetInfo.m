@@ -93,8 +93,16 @@
             return NULL;
         }
         struct if_msghdr2 *if2m = (struct if_msghdr2 *)ifm;
-        if (if2m->ifm_data.ifi_type == IFT_LOOP) {
-            continue; // loopback is local IPC, not network traffic
+        // Count link traffic once. VPN tunnels (utun is IFT_OTHER), bridges,
+        // VLANs, and bonds repeat bytes already counted by their links.
+        // macOS reports Wi-Fi as IFT_ETHER, including peer-to-peer Wi-Fi.
+        switch (if2m->ifm_data.ifi_type) {
+            case IFT_ETHER:
+            case IFT_IEEE1394:
+            case IFT_CELLULAR:
+                break;
+            default:
+                continue;
         }
         if (count == curCapacity) {
             int newCapacity = curCapacity ? curCapacity * 2 : 16;

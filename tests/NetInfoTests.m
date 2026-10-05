@@ -87,11 +87,34 @@ int main(void) {
         includeAddress = YES;
         assert([stats getInterfaceStats] != NULL); // Valid shorter route headers.
         includeAddress = NO;
+
+        // One transfer appears on both the physical link and its VPN tunnel.
+        // Simultaneous traffic on another link must still contribute.
+        messageCount = 8;
+        interface(0, 1, IFT_ETHER, 1000);
+        interface(1, 3, IFT_ETHER, 2000); // macOS Wi-Fi also reports IFT_ETHER.
+        interface(2, 4, IFT_OTHER, 1000); // utun
+        interface(3, 5, IFT_BRIDGE, 1000);
+        interface(4, 6, IFT_L2VLAN, 1000);
+        interface(5, 7, IFT_IEEE8023ADLAG, 1000);
+        interface(6, 8, IFT_CELLULAR, 1000);
+        interface(7, 9, IFT_IEEE1394, 1000);
+        now += 1000000000;
+        assert([stats getInterfaceStats] != NULL);
+        for (int i = 0; i < 8; i++) {
+            messages[i].ifm_data.ifi_ibytes += 1000;
+            messages[i].ifm_data.ifi_obytes += 500;
+        }
+        now += 1000000000;
+        sample = [stats getInterfaceStats];
+        assert(sample->delta_bytes_in == 4000 && sample->delta_bytes_out == 2000);
+        assert(sample->total_bytes_in == 9000 && sample->total_bytes_out == 2000);
+
         truncatedBytes = sizeof(messages[0]) - 1;
         assert([stats getInterfaceStats] == NULL);
         truncatedBytes = 0;
         messages[0].ifm_msglen = 0;
         assert([stats getInterfaceStats] == NULL);
-        puts("PASS: interface rates, loopback, buffer reuse/growth, churn, malformed route messages");
+        puts("PASS: link rates, VPN/bridge/VLAN deduplication, multiple links, churn, route parsing");
     }
 }
