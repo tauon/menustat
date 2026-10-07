@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.digitalsophistry.menustat.fans</string>
+    <key>BundleProgram</key>
+    <string>Contents/MacOS/menustat</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>menustat</string>
+        <string>--fan-helper</string>
+    </array>
+    <key>MachServices</key>
+    <dict>
+        <key>com.digitalsophistry.menustat.fans</key>
+        <true/>
+    </dict>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <!-- Allow an in-flight SMC operation and Auto reset to finish on update. -->
+    <key>ExitTimeOut</key>
+    <integer>30</integer>
+</dict>
+</plist>

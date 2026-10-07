@@ -31,6 +31,17 @@ import Cocoa
         delegate.menuWillOpen(menu)
         wait(2.5)
         let rows = menu.items.compactMap { $0.view as? MenuRowView }
+        precondition(rows.prefix(4).map { $0.nameField.stringValue } == ["Cores", "Net", "GPU", "Memory"])
+        let gpu = rows[2]
+        precondition(gpu.valueField.stringValue.hasSuffix("%") || gpu.valueField.stringValue == "Unavailable")
+        let memory = rows[3]
+        precondition(memory.valueField.stringValue.contains(" / ") && memory.valueField.stringValue.hasSuffix("GiB"),
+                     "Memory sample did not arrive")
+        let heading = rows.first { $0.nameField.stringValue.hasPrefix("Top Network") }!
+        let headingWidth = (heading.nameField.stringValue as NSString).size(withAttributes: [.font: heading.nameField.font!]).width
+        precondition(headingWidth + 4 <= heading.nameField.frame.width, "Network heading is truncated")
+        let memoryWidth = (memory.valueField.stringValue as NSString).size(withAttributes: [.font: memory.valueField.font!]).width
+        precondition(memoryWidth + 4 <= memory.valueField.frame.width, "Memory usage is clipped")
         precondition(!delegate.menuItem.button!.attributedTitle.string.isEmpty, "Status totals did not arrive")
         precondition(rows.contains {
             $0.valueField.stringValue.hasSuffix("%") && $0.nameField.stringValue != "Cores"
@@ -47,6 +58,11 @@ import Cocoa
         wait(2.2)
         delegate.menuDidClose(menu)
         wait(0.2)
+        let closedGPU = gpu.valueField.stringValue
+        let closedMemory = memory.valueField.stringValue
+        wait(1.2)
+        precondition(gpu.valueField.stringValue == closedGPU && memory.valueField.stringValue == closedMemory,
+                     "Closed menu received a stale sample")
         delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
         print("PASS: busy process at \(percent)% CPU, live status/menu sampling, 20 close/reopen cycles")
     }

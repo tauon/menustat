@@ -46,9 +46,11 @@ final class MenuTrackingDelegate: AppDelegate {
         openedAt = ProcessInfo.processInfo.systemUptime
         expectedClose = false
         super.menuWillOpen(menu)
-        let quitIndex = menu.items.firstIndex { $0.title == "Quit" }!
-        precondition(menu.items[quitIndex - 1].title.hasPrefix("Build "))
-        precondition(!menu.items[quitIndex - 1].isEnabled)
+        precondition(menu.items.contains { $0.title == "Quit" })
+        let fans = menu.items.first { $0.title.hasPrefix("Fan Control") }!
+        precondition(fans.submenu?.items.map(\.title) == ["Auto", "Medium", "Max"])
+        let build = menu.items.first { $0.title.hasPrefix("Build ") }!
+        precondition(!build.isEnabled)
         RunLoop.main.add(Timer(timeInterval: 2.2, repeats: false) { _ in
             self.expectedClose = true
             menu.cancelTracking()

@@ -4,6 +4,17 @@ import Cocoa
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     static func main() {
+        if CommandLine.arguments.contains("--fan-helper") { FanService.run() }
+        if CommandLine.arguments.contains("--fan-test") { exit(FanControlProbe.run()) }
+        if CommandLine.arguments.contains("--fan-register") { exit(FanController.serviceCommand(register: true)) }
+        if CommandLine.arguments.contains("--fan-service-status") { exit(FanController.serviceCommand(register: false)) }
+        if CommandLine.arguments.contains("--fan-status") {
+            do {
+                let status = try FanHardware(smc: SMCConnection()).status()
+                print(String(decoding: try JSONEncoder().encode(status), as: UTF8.self))
+                exit(0)
+            } catch { fputs("\(error.localizedDescription)\n", stderr); exit(1) }
+        }
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate
@@ -39,6 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // is actively looking at the menu.
     private let procQueue = DispatchQueue(label: "menustat.proc", qos: .userInitiated)
     private let procMonitor = ProcMonitor()
+    private let systemUsageMonitor = SystemUsageMonitor()
     private var menuIsOpen = false
     private var menuSession: UInt64 = 0
     private var menuRefreshTimer: DispatchSourceTimer?
@@ -55,9 +67,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var clusterRow: MenuRowView!
     private var netTotalsRow: MenuRowView!
+    private var gpuRow: MenuRowView!
+    private var memoryRow: MenuRowView!
     private var cpuRows: [MenuRowView] = []
     private var netRows: [MenuRowView] = []
     private var networkRowHistory = NetworkRowHistory()
+    private let fanController = FanController()
+    private let mouseButtonNavigation = MouseButtonNavigation()
 
     // monospacedSystemFont is SF Mono on modern macOS
     private lazy var menuFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
@@ -104,6 +120,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             button.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         }
         menuItem.menu = buildStatusMenu()
+        fanController.start()
+        mouseButtonNavigation.start()
 
         // A dispatch timer on the sample queue coalesces missed fires, so
         // ticks can never pile up and run concurrently.
@@ -148,11 +166,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        mouseButtonNavigation.stop()
         updateTimer?.cancel()
         menuDidClose(menuItem.menu ?? NSMenu())
         if let observer = occlusionObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        fanController.restore {
+            DispatchQueue.main.async { sender.reply(toApplicationShouldTerminate: true) }
+        }
+        return .terminateLater
     }
 
     // perflevel1 is the efficiency cluster (perflevel0 is performance), and
@@ -186,6 +212,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         clusterRow = addRow(to: menu)
         netTotalsRow = addRow(to: menu)
+        gpuRow = addRow(to: menu)
+        memoryRow = addRow(to: menu)
+        memoryRow.toolTip = "Used / physical memory (GiB). Includes app, wired and compressed memory; excludes reclaimable cache."
+        gpuRow.toolTip = "Driver-reported utilization of the busiest GPU."
         menu.addItem(.separator())
 
         addRow(to: menu, secondary: true).nameField.stringValue = "Top CPU"
@@ -199,6 +229,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let buildItem = NSMenuItem(title: "Build \(buildStamp)", action: nil, keyEquivalent: "")
         buildItem.isEnabled = false
         menu.addItem(buildItem)
+
+        menu.addItem(fanController.menuItem)
+        menu.addItem(mouseButtonNavigation.menuItem)
 
         let quitItem = NSMenuItem(title: "Quit", action: #selector(doQuit(_:)), keyEquivalent: "q")
         quitItem.target = self
@@ -241,12 +274,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        mouseButtonNavigation.refresh()
+        fanController.refresh()
         menuIsOpen = true
         networkRowHistory.reset()
         menuSession &+= 1
         let session = menuSession
 
         updateSummaryItems()
+        setRow(gpuRow, "GPU", "measuring…")
+        setRow(memoryRow, "Memory", "measuring…")
         for rows in [cpuRows, netRows] {
             for (i, row) in rows.enumerated() {
                 setRow(row, i == 0 ? "measuring…" : "", "")
@@ -257,6 +294,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         netProcStats = stats
         procQueue.async {
             self.procMonitor.reset()
+            self.systemUsageMonitor.start()
             if !stats.start() {
                 DispatchQueue.main.async {
                     guard self.menuIsOpen, self.menuSession == session else { return }
@@ -286,6 +324,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             netProcStats = nil
             procQueue.async {
                 stats.stop()
+                self.systemUsageMonitor.stop()
             }
         }
     }
@@ -293,19 +332,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // Runs on procQueue once a second while the menu is open.
     private func refreshOpenMenu(stats: NetProcStats, session: UInt64) {
         let cpu = procMonitor.topCPUProcesses(cpuRowCount)
+        let system = systemUsageMonitor.sample()
         // CPU results must not wait for an asynchronous network query.
-        applyMenuUpdate(cpu: cpu, net: nil, session: session)
+        applyMenuUpdate(cpu: cpu, net: nil, system: system, session: session)
         stats.queryRates { [weak self] rows in
             // runs on procQueue
             self?.applyMenuUpdate(cpu: nil, net: rows, session: session)
         }
     }
 
-    private func applyMenuUpdate(cpu: [ProcCPUUsage]?, net: [NetProcRow]?, session: UInt64) {
+    private func applyMenuUpdate(cpu: [ProcCPUUsage]?, net: [NetProcRow]?,
+                                 system: SystemUsageMonitor.Snapshot? = nil, session: UInt64) {
         DispatchQueue.main.async {
             guard self.menuIsOpen, self.menuSession == session else { return }
 
             self.updateSummaryItems()
+            if let system = system {
+                self.setRow(self.gpuRow, "GPU", system.gpuPercent.map { "\($0)%" } ?? "Unavailable")
+                let gib = Double(1 << 30)
+                self.setRow(self.memoryRow, "Memory", system.memoryUsed.map {
+                    String(format: "%.1f / %.1f GiB", Double($0) / gib, Double(system.memoryTotal) / gib)
+                } ?? "Unavailable")
+            }
 
             // empty means no baseline yet (first sample); keep "measuring…"
             if let cpu = cpu, !cpu.isEmpty {
@@ -492,7 +540,8 @@ final class MenuRowView: NSView {
 
         nameField = NSTextField(labelWithString: "")
         nameField.frame = NSRect(x: Self.sideInset, y: textY,
-                                 width: Self.nameWidth, height: textHeight)
+                                 width: secondary ? Self.rowWidth - 2 * Self.sideInset : Self.nameWidth,
+                                 height: textHeight)
         nameField.lineBreakMode = .byTruncatingTail
 
         let valueX = Self.sideInset + Self.nameWidth
@@ -502,6 +551,7 @@ final class MenuRowView: NSView {
                                   height: textHeight)
         valueField.alignment = .right
         valueField.lineBreakMode = .byClipping
+        valueField.isHidden = secondary
 
         super.init(frame: NSRect(x: 0, y: 0, width: Self.rowWidth, height: Self.rowHeight))
 

@@ -3,13 +3,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-deployment_target=15.0
+deployment_target=27.0
 sdk_path=$(xcrun --sdk macosx --show-sdk-path)
 mkdir -p build
 build_stage=$(mktemp -d "$PWD/build/.menustat.XXXXXX")
 trap 'rm -rf "$build_stage"' EXIT
 app_bundle="$build_stage/menustat.app"
-mkdir -p "$app_bundle/Contents/MacOS" "$app_bundle/Contents/Resources"
+mkdir -p "$app_bundle/Contents/MacOS" "$app_bundle/Contents/Resources" "$app_bundle/Contents/Library/LaunchDaemons"
 
 for source in CPUInfo NetInfo NetProcStats; do
     xcrun --sdk macosx clang -O2 -fobjc-arc -fmodules -Wall -Wextra -Werror \
@@ -19,7 +19,8 @@ done
 xcrun --sdk macosx swiftc -O -whole-module-optimization -warnings-as-errors \
     -sdk "$sdk_path" -target "$(uname -m)-apple-macosx$deployment_target" \
     -module-name menustat -import-objc-header menustat-Bridging-Header.h \
-    menustat/ProcMonitor.swift menustat/NetworkRowHistory.swift menustat/AppDelegate.swift \
+    menustat/ProcMonitor.swift menustat/NetworkRowHistory.swift menustat/SystemUsageMonitor.swift menustat/FanHardware.swift \
+    menustat/FanService.swift menustat/FanControlProbe.swift menustat/FanController.swift menustat/MouseButtonNavigation.swift menustat/AppDelegate.swift \
     "$build_stage/CPUInfo.o" "$build_stage/NetInfo.o" "$build_stage/NetProcStats.o" \
     -o "$app_bundle/Contents/MacOS/menustat"
 
@@ -41,7 +42,8 @@ cp menustat/Info.plist "$plist"
 /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $deployment_target" "$plist"
 /usr/libexec/PlistBuddy -c "Add :MenustatBuildDate string $(date +%Y%m%d-%H%M)" "$plist"
 plutil -lint "$plist"
-codesign --force --sign - "$app_bundle"
+cp menustat/com.digitalsophistry.menustat.fans.plist "$app_bundle/Contents/Library/LaunchDaemons/"
+codesign --force --sign "${MENUSTAT_SIGN_IDENTITY:--}" --timestamp=none "$app_bundle"
 codesign --verify --strict "$app_bundle"
 
 # Replace only after compilation, packaging, and signing have succeeded.

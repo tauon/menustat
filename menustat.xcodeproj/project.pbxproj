@@ -7,30 +7,58 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		30F664381B28433000C98B4D /* NetworkRowHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664391B28433000C98B4D /* NetworkRowHistory.swift */; };
 		306B33B02234C93B00B2B68C /* NetInfo.m in Sources */ = {isa = PBXBuildFile; fileRef = 306B33AF2234C93B00B2B68C /* NetInfo.m */; };
 		306B33C32234C93B00B2B68C /* NetProcStats.m in Sources */ = {isa = PBXBuildFile; fileRef = 306B33C22234C93B00B2B68C /* NetProcStats.m */; };
 		30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664251B28426A00C98B4D /* AppDelegate.swift */; };
-		30F664371B28433000C98B4D /* ProcMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664361B28433000C98B4D /* ProcMonitor.swift */; };
 		30F664281B28426A00C98B4D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 30F664271B28426A00C98B4D /* Assets.xcassets */; };
 		30F664341B2842E400C98B4D /* CPUInfo.m in Sources */ = {isa = PBXBuildFile; fileRef = 30F664331B2842E400C98B4D /* CPUInfo.m */; };
+		30F664371B28433000C98B4D /* ProcMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664361B28433000C98B4D /* ProcMonitor.swift */; };
+		30F664381B28433000C98B4D /* NetworkRowHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F664391B28433000C98B4D /* NetworkRowHistory.swift */; };
+		F000000000000000000000A2 /* FanHardware.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000A1 /* FanHardware.swift */; };
+		F000000000000000000000B2 /* FanService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000B1 /* FanService.swift */; };
+		F000000000000000000000C2 /* FanController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000C1 /* FanController.swift */; };
+		F000000000000000000000D2 /* com.digitalsophistry.menustat.fans.plist in Fan service configuration */ = {isa = PBXBuildFile; fileRef = F000000000000000000000D1 /* com.digitalsophistry.menustat.fans.plist */; };
+		F000000000000000000000E2 /* FanControlProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000E1 /* FanControlProbe.swift */; };
+		F000000000000000000000F2 /* MouseButtonNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000F1 /* MouseButtonNavigation.swift */; };
+		F00000000000000000000102 /* SystemUsageMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000101 /* SystemUsageMonitor.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		F000000000000000000000D3 /* Fan service configuration */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				F000000000000000000000D2 /* com.digitalsophistry.menustat.fans.plist in Fan service configuration */,
+			);
+			name = "Fan service configuration";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		30F664391B28433000C98B4D /* NetworkRowHistory.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NetworkRowHistory.swift; sourceTree = "<group>"; };
 		306B33AE2234C93B00B2B68C /* NetInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetInfo.h; sourceTree = SOURCE_ROOT; };
 		306B33AF2234C93B00B2B68C /* NetInfo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NetInfo.m; sourceTree = SOURCE_ROOT; };
 		306B33C12234C93B00B2B68C /* NetProcStats.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetProcStats.h; sourceTree = SOURCE_ROOT; };
 		306B33C22234C93B00B2B68C /* NetProcStats.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NetProcStats.m; sourceTree = SOURCE_ROOT; };
 		30F664221B28426A00C98B4D /* menustat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = menustat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		30F664251B28426A00C98B4D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		30F664361B28433000C98B4D /* ProcMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcMonitor.swift; sourceTree = "<group>"; };
 		30F664271B28426A00C98B4D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		30F6642A1B28426A00C98B4D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		30F6642C1B28426A00C98B4D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		30F664321B2842E400C98B4D /* menustat-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "menustat-Bridging-Header.h"; sourceTree = "<group>"; };
 		30F664331B2842E400C98B4D /* CPUInfo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CPUInfo.m; path = ../CPUInfo.m; sourceTree = "<group>"; };
 		30F664351B28432C00C98B4D /* CPUInfo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = CPUInfo.h; path = ../CPUInfo.h; sourceTree = "<group>"; };
+		30F664361B28433000C98B4D /* ProcMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcMonitor.swift; sourceTree = "<group>"; };
+		30F664391B28433000C98B4D /* NetworkRowHistory.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NetworkRowHistory.swift; sourceTree = "<group>"; };
+		F000000000000000000000A1 /* FanHardware.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanHardware.swift; sourceTree = "<group>"; };
+		F000000000000000000000B1 /* FanService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanService.swift; sourceTree = "<group>"; };
+		F000000000000000000000C1 /* FanController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanController.swift; sourceTree = "<group>"; };
+		F000000000000000000000D1 /* com.digitalsophistry.menustat.fans.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = com.digitalsophistry.menustat.fans.plist; sourceTree = "<group>"; };
+		F000000000000000000000E1 /* FanControlProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanControlProbe.swift; sourceTree = "<group>"; };
+		F000000000000000000000F1 /* MouseButtonNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseButtonNavigation.swift; sourceTree = "<group>"; };
+		F00000000000000000000101 /* SystemUsageMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemUsageMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,8 +99,15 @@
 				30F664331B2842E400C98B4D /* CPUInfo.m */,
 				30F664351B28432C00C98B4D /* CPUInfo.h */,
 				30F664251B28426A00C98B4D /* AppDelegate.swift */,
+				F00000000000000000000101 /* SystemUsageMonitor.swift */,
 				30F664361B28433000C98B4D /* ProcMonitor.swift */,
 				30F664391B28433000C98B4D /* NetworkRowHistory.swift */,
+				F000000000000000000000F1 /* MouseButtonNavigation.swift */,
+				F000000000000000000000E1 /* FanControlProbe.swift */,
+				F000000000000000000000D1 /* com.digitalsophistry.menustat.fans.plist */,
+				F000000000000000000000C1 /* FanController.swift */,
+				F000000000000000000000B1 /* FanService.swift */,
+				F000000000000000000000A1 /* FanHardware.swift */,
 				30F664271B28426A00C98B4D /* Assets.xcassets */,
 				30F664291B28426A00C98B4D /* MainMenu.xib */,
 				30F6642C1B28426A00C98B4D /* Info.plist */,
@@ -90,6 +125,7 @@
 				30F6641E1B28426A00C98B4D /* Sources */,
 				30F6641F1B28426A00C98B4D /* Frameworks */,
 				30F664201B28426A00C98B4D /* Resources */,
+				F000000000000000000000D3 /* Fan service configuration */,
 			);
 			buildRules = (
 			);
@@ -153,8 +189,14 @@
 			files = (
 				30F664341B2842E400C98B4D /* CPUInfo.m in Sources */,
 				30F664261B28426A00C98B4D /* AppDelegate.swift in Sources */,
+				F00000000000000000000102 /* SystemUsageMonitor.swift in Sources */,
 				30F664371B28433000C98B4D /* ProcMonitor.swift in Sources */,
 				30F664381B28433000C98B4D /* NetworkRowHistory.swift in Sources */,
+				F000000000000000000000F2 /* MouseButtonNavigation.swift in Sources */,
+				F000000000000000000000E2 /* FanControlProbe.swift in Sources */,
+				F000000000000000000000C2 /* FanController.swift in Sources */,
+				F000000000000000000000B2 /* FanService.swift in Sources */,
+				F000000000000000000000A2 /* FanHardware.swift in Sources */,
 				306B33B02234C93B00B2B68C /* NetInfo.m in Sources */,
 				306B33C32234C93B00B2B68C /* NetProcStats.m in Sources */,
 			);
@@ -225,7 +267,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -279,7 +321,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -303,7 +345,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.digitalsophistry.menustat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -330,7 +372,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.digitalsophistry.menustat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
